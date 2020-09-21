@@ -1,3 +1,6 @@
+import sys
+sys.path.append("/zhzhao/vscode_wavenet")
+
 import os
 import json
 import glog
@@ -9,7 +12,7 @@ flags = tf.app.flags
 flags.DEFINE_string('input_dir', 'E:/speech', 'Directory to mmc dataset.')
 flags.DEFINE_string('list_path', 'data/list.json', 'Path to list.')
 flags.DEFINE_string('config_path', 'config/english-28.json', 'Directory to config.')
-flags.DEFINE_integer('train_test_ratio', 10, 'The ratio of train to test.')
+flags.DEFINE_float('train_test_ratio', 0.2, 'The ratio of train to test.')
 flags.DEFINE_string('output_dir', 'data/v28', 'Path of output.')
 FLAGS = flags.FLAGS
 
@@ -60,7 +63,7 @@ def _create_dataset(input_dir, filenames, output_path):
       glog.error("length of label(%d) is greater than feature(%d) at %s." % (len(text), len(wave), stem))
 
     count = i + 1
-    if count % 1000 == 0:
+    if count % 50 == 0:
       glog.info('processed %d/%d files.' % (count, len(filenames)))
   if count % 1000 != 0:
     glog.info('processed %d/%d files.' % (count, len(filenames)))

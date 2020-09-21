@@ -51,7 +51,7 @@ to get help when you use ***.py
 1. Download and extract dataset(only VCTK support now, other will coming soon)
 2. Assume the directory of VCTK dataset is f:/speech, Execute
 ```
-python tools/create_tf_record.py -input_dir='f:/speech'
+python tools/create_tf_record.py -input_dir='/zhzhao/VCTK'
 ```
 to create record for train or test
 
