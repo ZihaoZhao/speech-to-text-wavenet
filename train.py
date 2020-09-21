@@ -1,3 +1,11 @@
+'''
+Author: your name
+Date: 2020-09-21 11:26:53
+LastEditTime: 2020-09-21 11:29:18
+LastEditors: Please set LastEditors
+Description: In User Settings Edit
+FilePath: /speech-to-text-wavenet/train.py
+'''
 import os
 import glog
 import tensorflow as tf
@@ -11,7 +19,7 @@ flags.DEFINE_string('dataset_path', 'data/v28/train.record', 'Filepath to train 
 flags.DEFINE_integer('batch_size', 32, 'Batch size of train.')
 flags.DEFINE_integer('display', 100, 'Step to display loss.')
 flags.DEFINE_integer('snapshot', 1000, 'Step to save model.')
-flags.DEFINE_integer('device', 0, 'The device used to train.')
+flags.DEFINE_string('device', "0, 1", 'The device used to train.')
 flags.DEFINE_string('pretrain_dir', 'pretrain', 'Directory to pretrain.')
 flags.DEFINE_string('ckpt_path', 'model/v28/ckpt', 'Path to directory holding a checkpoint.')
 flags.DEFINE_float('learning_rate', 0.01, 'Learning rate of train.')
