@@ -1,7 +1,7 @@
 '''
 Author: your name
 Date: 2020-09-21 11:26:53
-LastEditTime: 2020-09-21 11:29:18
+LastEditTime: 2020-09-22 16:08:33
 LastEditors: Please set LastEditors
 Description: In User Settings Edit
 FilePath: /speech-to-text-wavenet/train.py
@@ -18,7 +18,7 @@ flags.DEFINE_string('config_path', 'config/english-28.json', 'Directory to confi
 flags.DEFINE_string('dataset_path', 'data/v28/train.record', 'Filepath to train dataset record.')
 flags.DEFINE_integer('batch_size', 32, 'Batch size of train.')
 flags.DEFINE_integer('display', 100, 'Step to display loss.')
-flags.DEFINE_integer('snapshot', 1000, 'Step to save model.')
+flags.DEFINE_integer('snapshot', 100, 'Step to save model.')
 flags.DEFINE_string('device', "0, 1", 'The device used to train.')
 flags.DEFINE_string('pretrain_dir', 'pretrain', 'Directory to pretrain.')
 flags.DEFINE_string('ckpt_path', 'model/v28/ckpt', 'Path to directory holding a checkpoint.')
@@ -58,8 +58,8 @@ def main(_):
   with tf.Session(config=config) as sess:
     sess.run(tf.global_variables_initializer())
     sess.run(train_dataset[-1])
-    if os.path.exists(FLAGS.pretrain_dir) and len(os.listdir(FLAGS.pretrain_dir)) > 0:
-      save.restore(sess, tf.train.latest_checkpoint(FLAGS.pretrain_dir))
+    # if os.path.exists(FLAGS.pretrain_dir) and len(os.listdir(FLAGS.pretrain_dir)) > 0:
+    #   save.restore(sess, tf.train.latest_checkpoint(FLAGS.pretrain_dir))
     ckpt_dir = os.path.split(FLAGS.ckpt_path)[0]
     if not os.path.exists(ckpt_dir):
       os.makedirs(ckpt_dir)
