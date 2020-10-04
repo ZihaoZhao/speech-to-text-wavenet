@@ -1,6 +1,10 @@
 import torch
 from torch import nn
-import torch.nn.functional as F
+
+'''
+there mat be some error in padding, I don't known how padding in slim,
+so the skip connection in resnet and the init parameter, dilation, in wavenet class may be error.
+'''
 
 
 def _weights_initializer():
@@ -12,16 +16,17 @@ class Aconv1d(nn.Module):
 
         assert activate in ['sigmoid', 'tanh']
 
-        self.dilation_conv2d = nn.Conv2d(in_channels=1, out_channels=channel_out,
+        self.activate = activate
+
+        self.dilation_conv1d = nn.Conv1d(in_channels=channel_in, out_channels=channel_out,
                                        kernel_size=7, dilation=dilation, bias=False)
         self.bn = nn.BatchNorm1d(channel_out)
 
+
     def forward(self, inputs):
-        inputs = torch.unsqueeze(inputs, dim=1)
-        outputs = self.dilation_conv2d(inputs)
-        outputs = torch.squeeze(outputs, dim=1)
+        outputs = self.dilation_conv1d(inputs)
         outputs = self.bn(outputs)
-        if activate=='sigmoid':
+        if self.activate=='sigmoid':
             outputs = torch.sigmoid(outputs)
         else:
             outputs = torch.tanh(outputs)
@@ -43,10 +48,11 @@ class ResnetBlock(nn.Module):
         outputs = out_filter * out_gate
 
         outputs = torch.tanh(self.bn(self.conv1d(outputs)))
-        return outputs + inputs, outputs
+        print(outputs.shape, inputs.shape)
+        return outputs + inputs[:,:,-outputs.shape[2]:], outputs
 
 class WaveNet(nn.Module):
-    def __init__(self, num_classes, channels_in, channels_out=128, num_layers=3, dilations=[1,2,4,8,16]):
+    def __init__(self, num_classes, channels_in, channels_out=128, num_layers=3, dilations=[1,2,4]): # dilations=[1,2,4]
         super(WaveNet, self).__init__()
         self.num_layers = num_layers
         self.conv1d = nn.Conv1d(in_channels=channels_in, out_channels=channels_out, kernel_size=1)
@@ -57,7 +63,8 @@ class WaveNet(nn.Module):
         self.get_logits = nn.Conv1d(in_channels=channels_out, out_channels=num_classes, kernel_size=1)
 
     def forward(self, inputs):
-        x = self.conv1d(inputs)
+        x = self.bn(self.conv1d(inputs))
+        x = torch.tanh(x)
         out = 0.0
         for _ in range(self.num_layers):
             for layer in self.resnet_block:
@@ -70,8 +77,9 @@ class WaveNet(nn.Module):
         return logits
 
 if __name__ == '__main__':
-    model = WaveNet(num_classes=8, channels_in=64)
-    input = torch.rand([4,64,128])
+    model = WaveNet(num_classes=8, channels_in=16)
+    model.eval()
+    input = torch.rand([4,16,128]) # [4,16,128] may be too short. maybe there is some error in padding.
     print(model(input))
 
 
