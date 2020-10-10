@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+import torch.nn.functional as F
 
 '''
 there mat be some error in padding, I don't known how padding in slim,
@@ -16,14 +17,16 @@ class Aconv1d(nn.Module):
 
         assert activate in ['sigmoid', 'tanh']
 
+        self.dilation = dilation
         self.activate = activate
 
         self.dilation_conv1d = nn.Conv1d(in_channels=channel_in, out_channels=channel_out,
-                                       kernel_size=7, dilation=dilation, bias=False)
+                                       kernel_size=7, dilation=self.dilation, bias=False)
         self.bn = nn.BatchNorm1d(channel_out)
 
 
     def forward(self, inputs):
+        inputs = F.pad(inputs, (3*self.dilation, 3*self.dilation))
         outputs = self.dilation_conv1d(inputs)
         outputs = self.bn(outputs)
         if self.activate=='sigmoid':
@@ -48,11 +51,11 @@ class ResnetBlock(nn.Module):
         outputs = out_filter * out_gate
 
         outputs = torch.tanh(self.bn(self.conv1d(outputs)))
-        print(outputs.shape, inputs.shape)
-        return outputs + inputs[:,:,-outputs.shape[2]:], outputs
+        out = outputs + inputs
+        return out, outputs
 
 class WaveNet(nn.Module):
-    def __init__(self, num_classes, channels_in, channels_out=128, num_layers=3, dilations=[1,2,4]): # dilations=[1,2,4]
+    def __init__(self, num_classes, channels_in, channels_out=128, num_layers=3, dilations=[1,2,4,8,16]): # dilations=[1,2,4]
         super(WaveNet, self).__init__()
         self.num_layers = num_layers
         self.conv1d = nn.Conv1d(in_channels=channels_in, out_channels=channels_out, kernel_size=1)
@@ -65,19 +68,20 @@ class WaveNet(nn.Module):
     def forward(self, inputs):
         x = self.bn(self.conv1d(inputs))
         x = torch.tanh(x)
-        out = 0.0
+        outs = 0.0
         for _ in range(self.num_layers):
             for layer in self.resnet_block:
                 x, out = layer(x)
-                out += out
-        out = torch.tanh(self.bn(self.conv1d_out(out)))
+                outs += out
 
-        logits = self.get_logits(out)
+        outs = torch.tanh(self.bn(self.conv1d_out(outs)))
+
+        logits = self.get_logits(outs)
 
         return logits
 
 if __name__ == '__main__':
-    model = WaveNet(num_classes=8, channels_in=16)
+    model = WaveNet(num_classes=28, channels_in=20)
     model.eval()
     input = torch.rand([4,16,128]) # [4,16,128] may be too short. maybe there is some error in padding.
     print(model(input))

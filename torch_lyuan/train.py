@@ -1,38 +1,40 @@
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-import os
 import torch.optim as optim
 
-import config_train as CONFIG
+import config_train as cfg
 from dataset import VCTK
-from utils import collate_fn_
 from wavenet import WaveNet
+import utils
 
 from tensorboardX import SummaryWriter
+import os
 
 
 def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
-    weights_dir = os.path.join(CONFIG.workdir, 'weights')
+    weights_dir = os.path.join(cfg.workdir, 'weights')
     if not os.path.exists(weights_dir):
         os.mkdir(weights_dir)
 
     model.train()
     best_loss = float('inf')
-    for epoch in range(CONFIG.epoch):
+    for epoch in range(cfg.epochs):
+        print('begin...')
         _loss = 0.0
-        scheduler.step()
         for data in train_loader:
-            data = data.cuda()
-            input = data['input']
-            logits = model(input)
-            target = data['target']
-            loss = loss_fn(logits, target, len(logits[-1]), len(target))
+            wave = data['wave'].cuda() # [1, 128, 109]
+            logits = model(wave)
+            logits = logits.permute(2,0,1)
+            [_, N, _] = logits.shape
+            text = data['text'].cuda()
+            loss = loss_fn(logits, text, torch.tensor(N), torch.tensor(N))
             scheduler.zero_grad()
             loss.backward()
             scheduler.step()
             _loss += loss.data
         _loss /= len(train_loader)
+        print('finish a epoch')
 
         loss_val = validate(val_loader, model, loss_fn)
 
@@ -40,7 +42,7 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         writer.add_scalar('val/loss', loss_val, epoch)
 
         if loss_val < best_loss:
-            torch.save(model.state_dict(), CONFIG.workdir+'/weights/best.pth')
+            torch.save(model.state_dict(), cfg.workdir+'/weights/best.pth')
             best_loss = loss_val
 
 
@@ -59,24 +61,25 @@ def validate(val_loader, model, loss_fn):
 
 
 def main():
-    writer = SummaryWriter(log_dir=CONFIG.workdir)
+    writer = SummaryWriter(log_dir=cfg.workdir+'/runs')
 
     # build train data
-    vctk_train = VCTK(path=CONFIG.dataset)
-    train_loader = DataLoader(vctk_train,batch_size=1, shuffle=True,collate_fn=collate_fn_)
+    vctk_train = VCTK(cfg, 'train')
+    train_loader = DataLoader(vctk_train,batch_size=1, shuffle=True,)
 
-    vctk_val = VCTK(path=CONFIG.dataset)
-    val_loader = DataLoader(vctk_val, batch_size=1, shuffle=True, collate_fn=collate_fn_)
+    vctk_val = VCTK(cfg, 'val')
+    val_loader = DataLoader(vctk_val, batch_size=1, shuffle=False,)
 
     # build model
-    model = WaveNet(num_classes=8, channels_in=16, dilations=[1,2,4]).cuda()
+    model = WaveNet(num_classes=28, channels_in=20, dilations=[1,2,4,8,16])
     model = nn.DataParallel(model)
+    model.cuda()
 
     # build loss
     loss_fn = nn.CTCLoss()
 
     #
-    scheduler = optim.Adam(model.parameters(), lr=CONFIG.lr, eps=1e-4)
+    scheduler = optim.Adam(model.parameters(), lr=cfg.lr, eps=1e-4)
     # scheduler = optim.lr_scheduler.MultiStepLR(train_step, milestones=[50, 150, 250], gamma=0.5)
 
     # train

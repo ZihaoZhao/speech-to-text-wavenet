@@ -1,9 +1,12 @@
-config_path = 'config/english-28.json'
-dataset = 'data/v28/train.record'
+mode = None # set at dataloader, must be None
 
-work_dir = '' # all output you need will be saved here, include ckpt.pth.
+workdir = '/lyuan/code/speech-to-text-wavenet/torch_lyuan/exp/debug' # all output you need will be saved here, include ckpt.pth.
 
-batch_size = 64
+# path setting
+dataset = '/lyuan/dataset/VCTK'
+datalist = '/lyuan/code/speech-to-text-wavenet/data/list.json'
+
+batch_size = 1
 load_from = ''
 epochs = 1000
 lr = 1e-5
