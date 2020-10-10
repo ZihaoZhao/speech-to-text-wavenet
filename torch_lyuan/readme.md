@@ -1,3 +1,3 @@
-## run
-1. 在config_train中设置路径和训练配置
-2. 运行train.py
+# how to run
+1. setting dataset path and other config in config_train.py
+2. python train.py
