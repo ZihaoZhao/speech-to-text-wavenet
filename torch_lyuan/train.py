@@ -20,25 +20,25 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
     model.train()
     best_loss = float('inf')
     for epoch in range(cfg.epochs):
-        # print(f'training epoch{epoch}')
-        # _loss = 0.0
-        # cnt = 0
-        # for data in train_loader:
-        #     wave = data['wave'].cuda()  # [1, 128, 109]
-        #     logits = model(wave)
-        #     logits = logits.permute(2, 0, 1)
-        #     text = data['text'].cuda()
-        #     loss = loss_fn(logits, text, data['length_wave'], data['length_text'])
-        #     scheduler.zero_grad()
-        #     loss.backward()
-        #     scheduler.step()
-        #     _loss += loss.data
-        #     cnt += 1
-        #     if cnt % 1000 == 0:
-        #         print("Epoch", epoch,
-        #                 ", train step", cnt, "/", len(train_loader),
-        #                 ", loss: ", round(float(_loss.data/cnt), 5))
-        # _loss /= len(train_loader)
+        print(f'training epoch{epoch}')
+        _loss = 0.0
+        cnt = 0
+        for data in train_loader:
+            wave = data['wave'].cuda()  # [1, 128, 109]
+            logits = model(wave)
+            logits = logits.permute(2, 0, 1)
+            text = data['text'].cuda()
+            loss = loss_fn(logits, text, data['length_wave'], data['length_text'])
+            scheduler.zero_grad()
+            loss.backward()
+            scheduler.step()
+            _loss += loss.data
+            cnt += 1
+            if cnt % 1000 == 0:
+                print("Epoch", epoch,
+                        ", train step", cnt, "/", len(train_loader),
+                        ", loss: ", round(float(_loss.data/cnt), 5))
+        _loss /= len(train_loader)
 
         loss_val = validate(val_loader, model, loss_fn)
 
