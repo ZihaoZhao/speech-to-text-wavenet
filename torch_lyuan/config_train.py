@@ -9,6 +9,7 @@
 # Description  : 
 #-------------------------------------------# 
 
+distributed = True # distributed training, must be True
 mode = None # set at dataloader, must be None
 
 # workdir = '/lyuan/code/speech-to-text-wavenet/torch_lyuan/exp/debug' # all output you need will be saved here, include ckpt.pth.
