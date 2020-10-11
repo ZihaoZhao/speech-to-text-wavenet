@@ -1,14 +1,3 @@
-#----------------description----------------# 
-# Author       : Zihao Zhao
-# E-mail       : zhzhao18@fudan.edu.cn
-# Company      : Fudan University
-# Date         : 2020-10-10 17:40:40
-# LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-11 10:14:36
-# FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
-# Description  : 
-#-------------------------------------------# 
-
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -31,16 +20,15 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
     model.train()
     best_loss = float('inf')
     for epoch in range(cfg.epochs):
-        print('begin...')
+        print(f'training epoch{epoch}')
         _loss = 0.0
         cnt = 0
         for data in train_loader:
-            wave = data['wave'].cuda() # [1, 128, 109]
+            wave = data['wave'].cuda()  # [1, 128, 109]
             logits = model(wave)
-            logits = logits.permute(2,0,1)
-            [_, N, _] = logits.shape
+            logits = logits.permute(2, 0, 1)
             text = data['text'].cuda()
-            loss = loss_fn(logits, text, torch.tensor(N), torch.tensor(N))
+            loss = loss_fn(logits, text, data['length_wave'], data['length_text'])
             scheduler.zero_grad()
             loss.backward()
             scheduler.step()
@@ -51,7 +39,6 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
                         ", train step", cnt, "/", len(train_loader),
                         ", loss: ", round(float(_loss.data/cnt), 5))
         _loss /= len(train_loader)
-        print('finish a epoch')
 
         loss_val = validate(val_loader, model, loss_fn)
 
@@ -68,13 +55,14 @@ def validate(val_loader, model, loss_fn):
     _loss = 0.0
     cnt = 0
     for data in val_loader:
-        x = data['wave'].cuda()
-        # x = data[:, :-1]
-        logits = model(x)
-        logits = logits.permute(2,0,1)
-        [_, N, _] = logits.shape
+        wave = data['wave'].cuda()  # [1, 128, 109]
+        logits = model(wave)
+        logits = logits.permute(2, 0, 1)
         text = data['text'].cuda()
-        loss = loss_fn(logits, text, torch.tensor(N), torch.tensor(N))
+        loss = loss_fn(logits, text, data['length_wave'], data['length_text'])
+        scheduler.zero_grad()
+        loss.backward()
+        scheduler.step()
         _loss += loss.data
         cnt += 1
         if cnt % 500 == 0:
@@ -84,14 +72,16 @@ def validate(val_loader, model, loss_fn):
 
 
 def main():
+    print('initial training...')
+    print(f'work_dir:{cfg.workdir}, pretrained:{cfg.load_from}, batch_size:{cfg.batch_size}, lr:{cfg.lr}, epochs:{cfg.epochs}')
     writer = SummaryWriter(log_dir=cfg.workdir+'/runs')
 
     # build train data
     vctk_train = VCTK(cfg, 'train')
-    train_loader = DataLoader(vctk_train,batch_size=1, shuffle=True,)
+    train_loader = DataLoader(vctk_train,batch_size=cfg.batch_size, shuffle=True,)
 
     vctk_val = VCTK(cfg, 'val')
-    val_loader = DataLoader(vctk_val, batch_size=1, shuffle=False,)
+    val_loader = DataLoader(vctk_val, batch_size=cfg.batch_size, shuffle=False,)
 
     # build model
     model = WaveNet(num_classes=28, channels_in=20, dilations=[1,2,4,8,16])
