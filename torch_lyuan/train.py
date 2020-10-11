@@ -20,25 +20,25 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
     model.train()
     best_loss = float('inf')
     for epoch in range(cfg.epochs):
-        print(f'training epoch{epoch}')
-        _loss = 0.0
-        cnt = 0
-        for data in train_loader:
-            wave = data['wave'].cuda()  # [1, 128, 109]
-            logits = model(wave)
-            logits = logits.permute(2, 0, 1)
-            text = data['text'].cuda()
-            loss = loss_fn(logits, text, data['length_wave'], data['length_text'])
-            scheduler.zero_grad()
-            loss.backward()
-            scheduler.step()
-            _loss += loss.data
-            cnt += 1
-            if cnt % 1000 == 0:
-                print("Epoch", epoch,
-                        ", train step", cnt, "/", len(train_loader),
-                        ", loss: ", round(float(_loss.data/cnt), 5))
-        _loss /= len(train_loader)
+        # print(f'training epoch{epoch}')
+        # _loss = 0.0
+        # cnt = 0
+        # for data in train_loader:
+        #     wave = data['wave'].cuda()  # [1, 128, 109]
+        #     logits = model(wave)
+        #     logits = logits.permute(2, 0, 1)
+        #     text = data['text'].cuda()
+        #     loss = loss_fn(logits, text, data['length_wave'], data['length_text'])
+        #     scheduler.zero_grad()
+        #     loss.backward()
+        #     scheduler.step()
+        #     _loss += loss.data
+        #     cnt += 1
+        #     if cnt % 1000 == 0:
+        #         print("Epoch", epoch,
+        #                 ", train step", cnt, "/", len(train_loader),
+        #                 ", loss: ", round(float(_loss.data/cnt), 5))
+        # _loss /= len(train_loader)
 
         loss_val = validate(val_loader, model, loss_fn)
 
@@ -60,10 +60,8 @@ def validate(val_loader, model, loss_fn):
         logits = logits.permute(2, 0, 1)
         text = data['text'].cuda()
         loss = loss_fn(logits, text, data['length_wave'], data['length_text'])
-        scheduler.zero_grad()
-        loss.backward()
-        scheduler.step()
         _loss += loss.data
+        print(loss)
         cnt += 1
         if cnt % 500 == 0:
             print("Val step", cnt, "/", len(val_loader),
@@ -73,15 +71,15 @@ def validate(val_loader, model, loss_fn):
 
 def main():
     print('initial training...')
-    print(f'work_dir:{cfg.workdir}, pretrained:{cfg.load_from}, batch_size:{cfg.batch_size}, lr:{cfg.lr}, epochs:{cfg.epochs}')
+    print(f'work_dir:{cfg.workdir}, pretrained:{cfg.load_from}, batch_size:{cfg.batch_size} lr:{cfg.lr}, epochs:{cfg.epochs}')
     writer = SummaryWriter(log_dir=cfg.workdir+'/runs')
 
     # build train data
     vctk_train = VCTK(cfg, 'train')
-    train_loader = DataLoader(vctk_train,batch_size=cfg.batch_size, num_workers=32, shuffle=True,)
+    train_loader = DataLoader(vctk_train,batch_size=cfg.batch_size, num_workers=8, shuffle=False, pin_memory=True)
 
     vctk_val = VCTK(cfg, 'val')
-    val_loader = DataLoader(vctk_val, batch_size=cfg.batch_size, num_workers=32, shuffle=False,)
+    val_loader = DataLoader(vctk_val, batch_size=cfg.batch_size, num_workers=8, shuffle=False, pin_memory=True)
 
     # build model
     model = WaveNet(num_classes=28, channels_in=20, dilations=[1,2,4,8,16])
