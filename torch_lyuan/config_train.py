@@ -24,7 +24,7 @@ workdir = '/zhzhao/code/wavenet_torch/torch_lyuan/exp/debug' # all output you ne
 dataset = '/zhzhao/VCTK'
 datalist = '/zhzhao/code/wavenet_torch/data/list.json'
 
-batch_size = 1
+batch_size = 32 # reconmendate 32
 load_from = ''
 epochs = 1000
 lr = 1e-5
