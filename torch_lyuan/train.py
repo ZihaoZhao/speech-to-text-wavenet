@@ -78,10 +78,10 @@ def main():
 
     # build train data
     vctk_train = VCTK(cfg, 'train')
-    train_loader = DataLoader(vctk_train,batch_size=cfg.batch_size, shuffle=True,)
+    train_loader = DataLoader(vctk_train,batch_size=cfg.batch_size, num_workers=32, shuffle=True,)
 
     vctk_val = VCTK(cfg, 'val')
-    val_loader = DataLoader(vctk_val, batch_size=cfg.batch_size, shuffle=False,)
+    val_loader = DataLoader(vctk_val, batch_size=cfg.batch_size, num_workers=32, shuffle=False,)
 
     # build model
     model = WaveNet(num_classes=28, channels_in=20, dilations=[1,2,4,8,16])
