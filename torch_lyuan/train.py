@@ -1,3 +1,14 @@
+#----------------description----------------# 
+# Author       : Zihao Zhao
+# E-mail       : zhzhao18@fudan.edu.cn
+# Company      : Fudan University
+# Date         : 2020-10-10 17:40:40
+# LastEditors  : Zihao Zhao
+# LastEditTime : 2020-10-11 10:14:36
+# FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
+# Description  : 
+#-------------------------------------------# 
+
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -22,6 +33,7 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
     for epoch in range(cfg.epochs):
         print('begin...')
         _loss = 0.0
+        cnt = 0
         for data in train_loader:
             wave = data['wave'].cuda() # [1, 128, 109]
             logits = model(wave)
@@ -33,6 +45,11 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
             loss.backward()
             scheduler.step()
             _loss += loss.data
+            cnt += 1
+            if cnt % 1000 == 0:
+                print("Epoch", epoch,
+                        ", train step", cnt, "/", len(train_loader),
+                        ", loss: ", round(float(_loss.data/cnt), 5))
         _loss /= len(train_loader)
         print('finish a epoch')
 
@@ -48,16 +65,22 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
 
 def validate(val_loader, model, loss_fn):
     model.eval()
-    loss_ = []
+    _loss = 0.0
+    cnt = 0
     for data in val_loader:
-        data = data.cuda()
-        x = data[:, :-1]
-
+        x = data['wave'].cuda()
+        # x = data[:, :-1]
         logits = model(x)
-        y = data[:, -logits.size(2):]
-        loss = loss_fn(logits.transpose(1, 2).contiguous().view(-1, 256), y.view(-1))
-        loss_.append(loss.data[0])
-    return sum(loss_)
+        logits = logits.permute(2,0,1)
+        [_, N, _] = logits.shape
+        text = data['text'].cuda()
+        loss = loss_fn(logits, text, torch.tensor(N), torch.tensor(N))
+        _loss += loss.data
+        cnt += 1
+        if cnt % 500 == 0:
+            print("Val step", cnt, "/", len(val_loader),
+                    ", loss: ", round(float(_loss.data/cnt), 5))
+    return _loss/len(val_loader)
 
 
 def main():

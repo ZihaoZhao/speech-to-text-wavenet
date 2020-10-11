@@ -1,3 +1,14 @@
+#----------------description----------------# 
+# Author       : Zihao Zhao
+# E-mail       : zhzhao18@fudan.edu.cn
+# Company      : Fudan University
+# Date         : 2020-10-10 17:40:40
+# LastEditors  : Zihao Zhao
+# LastEditTime : 2020-10-11 10:14:04
+# FilePath     : /speech-to-text-wavenet/torch_lyuan/dataset.py
+# Description  : 
+#-------------------------------------------# 
+
 import torch
 from torch.utils.data import Dataset
 import utils
@@ -36,7 +47,7 @@ class VCTK(Dataset):
         if self.mode == 'train':
             return len(self.train_filenames)
         else:
-            return len(test_filenames)
+            return len(self.test_filenames)
 
 if __name__ == '__main__':
     # train_filenames, test_filenames = json.load(open('/lyuan/code/speech-to-text-wavenet/data/list.json', 'r', encoding='utf-8'))

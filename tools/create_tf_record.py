@@ -9,10 +9,10 @@ import random
 import tensorflow as tf
 
 flags = tf.app.flags
-flags.DEFINE_string('input_dir', 'E:/speech', 'Directory to mmc dataset.')
+flags.DEFINE_string('input_dir', '/zhzhao/dataset/VCTK', 'Directory to mmc dataset.')
 flags.DEFINE_string('list_path', 'data/list.json', 'Path to list.')
 flags.DEFINE_string('config_path', 'config/english-28.json', 'Directory to config.')
-flags.DEFINE_float('train_test_ratio', 0.1, 'The ratio of train to test.')
+flags.DEFINE_float('train_test_ratio', 0.2, 'The ratio of train to test.')
 flags.DEFINE_string('output_dir', 'data/v28', 'Path of output.')
 FLAGS = flags.FLAGS
 
