@@ -46,7 +46,7 @@ class VCTK(Dataset):
         if self.mode == 'train':
             return len(self.train_filenames)
         else:
-            return len(test_filenames)
+            return len(self.test_filenames)
 
 if __name__ == '__main__':
     # train_filenames, test_filenames = json.load(open('/lyuan/code/speech-to-text-wavenet/data/list.json', 'r', encoding='utf-8'))
