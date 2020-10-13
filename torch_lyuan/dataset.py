@@ -1,3 +1,14 @@
+#----------------description----------------# 
+# Author       : Lei yuan
+# E-mail       : zhzhao18@fudan.edu.cn
+# Company      : Fudan University
+# Date         : 2020-10-11 15:28:41
+# LastEditors  : Zihao Zhao
+# LastEditTime : 2020-10-13 10:06:03
+# FilePath     : /speech-to-text-wavenet/torch_lyuan/dataset.py
+# Description  : 
+#-------------------------------------------# 
+
 import torch
 from torch.utils.data import Dataset
 import utils
@@ -43,8 +54,12 @@ class VCTK(Dataset):
         text[:length_text] = text_tmp
         name = filenames[0].split('/')[-1]
 
-        sample = {'name':name, 'wave':wave, 'text':text,
-                  'length_wave':length_wave, 'length_text':length_text}
+        if length_text >= length_wave:
+            sample = {'name':name, 'wave':torch.zeros([20, self.max_wave],dtype=torch.float), 'text':torch.zeros([self.max_text],dtype=torch.float),
+                    'length_wave':self.max_wave, 'length_text':self.max_text}
+        else:
+            sample = {'name':name, 'wave':wave, 'text':text,
+                    'length_wave':length_wave, 'length_text':length_text}
         return sample
 
 
@@ -78,4 +93,6 @@ if __name__ == '__main__':
         if tmp > max_text:
             max_length = tmp
     print(f'val set {max_wave}, {max_text}')
+
+
 

@@ -1,3 +1,14 @@
+#----------------description----------------# 
+# Author       : Lei yuan
+# E-mail       : zhzhao18@fudan.edu.cn
+# Company      : Fudan University
+# Date         : 2020-10-10 17:40:40
+# LastEditors  : Zihao Zhao
+# LastEditTime : 2020-10-13 10:32:18
+# FilePath     : /speech-to-text-wavenet/torch_lyuan/wavenet.py
+# Description  : 
+#-------------------------------------------# 
+
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -26,15 +37,21 @@ class Aconv1d(nn.Module):
 
 
     def forward(self, inputs):
+        # padding number = (kernel_size - 1) * dilation / 2
         inputs = F.pad(inputs, (3*self.dilation, 3*self.dilation))
         outputs = self.dilation_conv1d(inputs)
         outputs = self.bn(outputs)
+        # self.mask = self.pruning()
+
+
         if self.activate=='sigmoid':
             outputs = torch.sigmoid(outputs)
         else:
             outputs = torch.tanh(outputs)
         return outputs
 
+    # def pruning(self):
+    #     return mask
 
 class ResnetBlock(nn.Module):
     def __init__(self, dilation, channel_in, channel_out, activate='sigmoid'):

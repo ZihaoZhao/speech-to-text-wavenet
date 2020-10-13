@@ -1,7 +1,19 @@
+#----------------description----------------# 
+# Author       : Lei yuan
+# E-mail       : zhzhao18@fudan.edu.cn
+# Company      : Fudan University
+# Date         : 2020-10-10 17:40:40
+# LastEditors  : Zihao Zhao
+# LastEditTime : 2020-10-13 10:16:48
+# FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
+# Description  : 
+#-------------------------------------------# 
+
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 import torch.optim as optim
+import torch.nn.functional as F
 
 import config_train as cfg
 from dataset import VCTK
@@ -12,12 +24,16 @@ from tensorboardX import SummaryWriter
 import os
 
 
-def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
+def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None, sparse_mode=None):
     weights_dir = os.path.join(cfg.workdir, 'weights')
     if not os.path.exists(weights_dir):
         os.mkdir(weights_dir)
-
     model.train()
+
+    if os.path.exists(cfg.workdir + '/weights/last.pth'):
+        model.load_state_dict(torch.load(cfg.workdir + '/weights/last.pth'))
+        print("loading", cfg.workdir + '/weights/last.pth')
+        
     best_loss = float('inf')
     for epoch in range(cfg.epochs):
         print(f'training epoch{epoch}')
@@ -27,6 +43,7 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
             wave = data['wave'].cuda()  # [1, 128, 109]
             logits = model(wave)
             logits = logits.permute(2, 0, 1)
+            logits = F.log_softmax(logits, dim=2)
             text = data['text'].cuda()
             loss = loss_fn(logits, text, data['length_wave'], data['length_text'])
             scheduler.zero_grad()
@@ -34,10 +51,17 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
             scheduler.step()
             _loss += loss.data
             cnt += 1
-            if cnt % 1000 == 0:
+            if not _loss.data/cnt <100:
+                print(data['name'])
+                print(data)
+                print(logits)
+                print(text)
+                exit()
+            if cnt % 100 == 0:
                 print("Epoch", epoch,
                         ", train step", cnt, "/", len(train_loader),
                         ", loss: ", round(float(_loss.data/cnt), 5))
+                torch.save(model.state_dict(), cfg.workdir+'/weights/last.pth')
         _loss /= len(train_loader)
 
         loss_val = validate(val_loader, model, loss_fn)
@@ -47,6 +71,7 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
 
         if loss_val < best_loss:
             torch.save(model.state_dict(), cfg.workdir+'/weights/best.pth')
+            print("saved", cfg.workdir+'/weights/best.pth')
             best_loss = loss_val
 
 
@@ -58,14 +83,17 @@ def validate(val_loader, model, loss_fn):
         wave = data['wave'].cuda()  # [1, 128, 109]
         logits = model(wave)
         logits = logits.permute(2, 0, 1)
+        logits = F.log_softmax(logits, dim=2)
         text = data['text'].cuda()
         loss = loss_fn(logits, text, data['length_wave'], data['length_text'])
         _loss += loss.data
         print(loss)
         cnt += 1
-        if cnt % 500 == 0:
-            print("Val step", cnt, "/", len(val_loader),
-                    ", loss: ", round(float(_loss.data/cnt), 5))
+        # if cnt % 10 == 0:
+    print("Val step", cnt, "/", len(val_loader),
+            ", loss: ", round(float(_loss.data/cnt), 5))
+
+    #TODO evluate
     return _loss/len(val_loader)
 
 
