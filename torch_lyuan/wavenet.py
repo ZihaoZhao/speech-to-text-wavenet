@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-13 10:32:18
+# LastEditTime : 2020-10-13 11:37:34
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/wavenet.py
 # Description  : 
 #-------------------------------------------# 
@@ -12,7 +12,9 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
+from torch.nn import Parameter
 
+import config_train as cfg
 '''
 there mat be some error in padding, I don't known how padding in slim,
 so the skip connection in resnet and the init parameter, dilation, in wavenet class may be error.
@@ -39,10 +41,12 @@ class Aconv1d(nn.Module):
     def forward(self, inputs):
         # padding number = (kernel_size - 1) * dilation / 2
         inputs = F.pad(inputs, (3*self.dilation, 3*self.dilation))
+
+        if cfg.sparse == 'thre_pruning':
+            self.thre_pruning(0.2)
+
         outputs = self.dilation_conv1d(inputs)
         outputs = self.bn(outputs)
-        # self.mask = self.pruning()
-
 
         if self.activate=='sigmoid':
             outputs = torch.sigmoid(outputs)
@@ -50,8 +54,24 @@ class Aconv1d(nn.Module):
             outputs = torch.tanh(outputs)
         return outputs
 
-    # def pruning(self):
-    #     return mask
+    def thre_pruning(self, thre):
+        # print(self.dilation_conv1d.named_parameters())
+        for name, para in self.dilation_conv1d.named_parameters():
+            name_w = name
+            raw_w = para
+            # print(name, raw_w.size())
+        # raw_w = getattr(self.module, name_w + '_raw')
+        # mask = torch.autograd.Variable(torch.ones(raw_w.size()))
+        # mask = torch.nn.functional.dropout(mask, p=0.2, training=True)
+        # mask.cuda()
+        # w = torch.mul(mask, raw_w)
+        # setattr(self.dilation_conv1d, name_w, torch.mul(mask, raw_w))
+
+        ## threshold prunning
+        zero = torch.zeros_like(raw_w)
+        raw_w = torch.where(raw_w < thre, zero, raw_w)
+        setattr(self.dilation_conv1d, name_w, Parameter(raw_w.data))
+        # exit()
 
 class ResnetBlock(nn.Module):
     def __init__(self, dilation, channel_in, channel_out, activate='sigmoid'):
@@ -96,6 +116,28 @@ class WaveNet(nn.Module):
         logits = self.get_logits(outs)
 
         return logits
+
+    def thre_pruning(self, thre):
+        # print(self.dilation_conv1d.named_parameters())
+        name_list = list()
+        para_list = list()
+        for name, para in self.named_parameters():
+            name_list.append(name)
+            para_list.append(para)
+            # print(name, raw_w.size())
+        # raw_w = getattr(self.module, name_w + '_raw')
+        # mask = torch.autograd.Variable(torch.ones(raw_w.size()))
+        # mask = torch.nn.functional.dropout(mask, p=0.2, training=True)
+        # mask.cuda()
+        # w = torch.mul(mask, raw_w)
+        # setattr(self.dilation_conv1d, name_w, torch.mul(mask, raw_w))
+
+        # ## threshold prunning
+        # zero = torch.zeros_like(raw_w)
+        # raw_w = torch.where(raw_w < thre, zero, raw_w)
+        # setattr(self.dilation_conv1d, name_w, Parameter(raw_w.data))
+
+
 
 if __name__ == '__main__':
     model = WaveNet(num_classes=28, channels_in=20)

@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-13 10:16:48
+# LastEditTime : 2020-10-13 11:26:51
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 
 #-------------------------------------------# 
@@ -24,7 +24,7 @@ from tensorboardX import SummaryWriter
 import os
 
 
-def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None, sparse_mode=None):
+def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
     weights_dir = os.path.join(cfg.workdir, 'weights')
     if not os.path.exists(weights_dir):
         os.mkdir(weights_dir)
@@ -57,7 +57,7 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None, spar
                 print(logits)
                 print(text)
                 exit()
-            if cnt % 100 == 0:
+            if cnt % 1000 == 0:
                 print("Epoch", epoch,
                         ", train step", cnt, "/", len(train_loader),
                         ", loss: ", round(float(_loss.data/cnt), 5))
@@ -94,12 +94,13 @@ def validate(val_loader, model, loss_fn):
             ", loss: ", round(float(_loss.data/cnt), 5))
 
     #TODO evluate
+    
     return _loss/len(val_loader)
 
 
 def main():
     print('initial training...')
-    print(f'work_dir:{cfg.workdir}, pretrained:{cfg.load_from}, batch_size:{cfg.batch_size} lr:{cfg.lr}, epochs:{cfg.epochs}')
+    print(f'work_dir:{cfg.workdir}, pretrained:{cfg.load_from}, batch_size:{cfg.batch_size} lr:{cfg.lr}, epochs:{cfg.epochs}, sparse:{cfg.sparse}')
     writer = SummaryWriter(log_dir=cfg.workdir+'/runs')
 
     # build train data
