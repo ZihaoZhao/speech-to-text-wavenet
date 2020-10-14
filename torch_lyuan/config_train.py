@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-14 14:04:10
+# LastEditTime : 2020-10-14 15:00:09
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/config_train.py
 # Description  : 
 #-------------------------------------------# 
@@ -19,14 +19,8 @@ resume = True
 # dataset = '/lyuan/dataset/VCTK'
 # datalist = '/lyuan/code/speech-to-text-wavenet/data/list.json'
 
-
-# workdir = '/zhzhao/code/wavenet_torch/torch_lyuan/exp_thre_pruning_comp_32/debug' # all output you need will be saved here, include ckpt.pth.
-# workdir = '/zhzhao/code/wavenet_torch/torch_lyuan/exp_con_epoch_thre_pruning0_2_32/debug' # all output you need will be saved here, include ckpt.pth.
 exp_name = 'dense_32'
-workdir = '/zhzhao/code/wavenet_torch/torch_lyuan/exp_result/'+exp_name+'/debug' # all output you need will be saved here, include ckpt.pth.
-# workdir = '/zhzhao/code/wavenet_torch/torch_lyuan/exp_thre_pruning_comp/debug' # all output you need will be saved here, include ckpt.pth.
-# workdir = '/zhzhao/code/wavenet_torch/torch_lyuan/exp_con_epoch_thre_pruning0_05/debug' # all output you need will be saved here, include ckpt.pth.
-# workdir = '/zhzhao/code/wavenet_torch/torch_lyuan/exp_thre_pruning_comp/debug' # all output you need will be saved here, include ckpt.pth.
+# workdir = '/zhzhao/code/wavenet_torch/torch_lyuan/exp_result/' + exp_name + '/debug' # all output you need will be saved here, include ckpt.pth.
 
 # path setting
 dataset = '/zhzhao/VCTK'
@@ -35,7 +29,7 @@ datalist = '/zhzhao/code/wavenet_torch/data/list.json'
 # sparse_mode = 'thre_pruning'#'dense'#'thre_pruning'
 # pruning_thre = 0.05   ### zero:971, all:2560
 
-sparse_mode = 'sparse_pruning'#'dense'#'thre_pruning'
+sparse_mode = 'dense'#'dense'#'thre_pruning'
 sparsity = 0.2   ### zero:971, all:2560
 
 batch_size = 32 # reconmendate 32

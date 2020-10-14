@@ -5,6 +5,11 @@ using distributed to speed up training
 3. bash dist_train.sh
 
 
+# ctc decoder
+git clone --recursive https://github.com/parlance/ctcdecode.git
+cd ctcdecode && pip install .
+
+# run exp
 
 ps -ef|grep python|cut -c 9-15 |xargs kill -s9
 
