@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-14 10:56:26
+# LastEditTime : 2020-10-14 14:04:39
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 
 #-------------------------------------------# 
@@ -20,26 +20,61 @@ from dataset import VCTK
 from wavenet import WaveNet
 import utils
 
+from ctcdecode import CTCBeamDecoder
+
 from tensorboardX import SummaryWriter
 import os
 
+import argparse
+
+
+def parse_args():
+    '''
+    Parse input arguments
+    '''
+    parser = argparse.ArgumentParser(description='SNN for BMI.')
+    parser.add_argument('--resume', type=str, help='exp dir', default="true")
+    parser.add_argument('--exp', type=str, help='exp dir', default="default")
+    parser.add_argument('--sparse_mode', type=str, help='dense, sparse_pruning, thre_pruning', default="dense")
+    parser.add_argument('--sparsity', type=float, help='0.2, 0.4, 0.8', default=0.2)
+    parser.add_argument('--load_from', type=str, help='.pth', default="path")
+
+    # if len(sys.argv) == 1:
+    #     parser.print_help()
+    #     sys.exit(1)
+
+    args = parser.parse_args()
+    return args
 
 def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
+    
+    vocabulary = utils.Data.vocabulary
+ 
+    decoder = CTCBeamDecoder(
+        vocabulary,
+        model_path=None,
+        alpha=0,
+        beta=0,
+        cutoff_top_n=40,
+        cutoff_prob=1.0,
+        beam_width=100,
+        num_processes=4,
+        blank_id=0,
+        log_probs_input=False
+    )
     weights_dir = os.path.join(cfg.workdir, 'weights')
     if not os.path.exists(weights_dir):
         os.mkdir(weights_dir)
     model.train()
 
-    if os.path.exists('/zhzhao/code/wavenet_torch/torch_lyuan/exp_thre_pruning_comp_32/debug/weights/last.pth'):
-        model.load_state_dict(torch.load('/zhzhao/code/wavenet_torch/torch_lyuan/exp_thre_pruning_comp_32/debug/weights/last.pth'))
-        print("loading", '/zhzhao/code/wavenet_torch/torch_lyuan/exp_thre_pruning_comp_32/debug/weights/last.pth')
-    # if os.path.exists(cfg.workdir + '/weights/last.pth'):
-    #     model.load_state_dict(torch.load(cfg.workdir + '/weights/last.pth'))
-    #     print("loading", cfg.workdir + '/weights/last.pth')
+    if cfg.resume and os.path.exists(cfg.workdir + '/weights/last.pth'):
+        model.load_state_dict(torch.load(cfg.workdir + '/weights/last.pth'))
+        print("loading", cfg.workdir + '/weights/last.pth')
+
+    if os.path.exists(cfg.load_from):
+        model.load_state_dict(torch.load(cfg.load_from))
+        print("loading", cfg.load_from)
         
-    model = pruning(model, cfg.sparse_mode)
-    sparsity = cal_sparsity(model)
-    print("sparsity:", sparsity)
 
     best_loss = float('inf')
     for epoch in range(cfg.epochs):
@@ -47,6 +82,9 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         _loss = 0.0
         step_cnt = 0
         
+        model = pruning(model, cfg.sparse_mode)
+        sparsity = cal_sparsity(model)
+        print("sparsity:", sparsity)
         for data in train_loader:
             wave = data['wave'].cuda()  # [1, 128, 109]
             logits = model(wave)
@@ -57,15 +95,16 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
             scheduler.zero_grad()
             loss.backward()
             scheduler.step()
-            _loss += loss.data
-            if not _loss.data/(step_cnt+1) <100:
-                print(data['name'])
-                print(data)
-                print(logits)
-                print(text)
-                exit()
+            _loss += loss.data   
+            # beam_results, beam_scores, timesteps, out_lens = decoder.decode(logits)  
+            # print(beam_results)
+            # print(beam_scores)
+            # print(timesteps)
+            # print(out_lens)
+            # exit()
+            # tp, pred, pos = utils.evalutes(utils.cvt_np2string(logits), utils.cvt_np2string(text))    
 
-            if step_cnt % int(10000/cfg.batch_size) == 0:
+            if step_cnt % int(12000/cfg.batch_size) == 1:
                 print("Epoch", epoch,
                         ", train step", step_cnt, "/", len(train_loader),
                         ", loss: ", round(float(_loss.data/step_cnt), 5))
@@ -94,7 +133,7 @@ def pruning(model, sparse_mode="dense"):
             name_list.append(name)
             para_list.append(para)
 
-        a = torch.load(cfg.workdir+'/weights/last.pth')
+        a = model.state_dict()
         zero_cnt = 0
         all_cnt = 0
         for i, name in enumerate(name_list):
@@ -117,7 +156,7 @@ def pruning(model, sparse_mode="dense"):
             name_list.append(name)
             para_list.append(para)
 
-        a = torch.load(cfg.workdir+'/weights/last.pth')
+        a = model.state_dict()
         zero_cnt = 0
         all_cnt = 0
         for i, name in enumerate(name_list):
@@ -185,6 +224,13 @@ def validate(val_loader, model, loss_fn):
 
 
 def main():
+    args = parse_args()
+    cfg.resume      = args.resume
+    cfg.exp_name    = args.exp
+    cfg.sparse_mode = args.sparse_mode
+    cfg.sparsity    = args.sparsity
+    cfg.load_from   = args.load_from
+    
     print('initial training...')
     print(f'work_dir:{cfg.workdir}, \n\
             pretrained: {cfg.load_from},  \n\

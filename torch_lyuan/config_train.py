@@ -4,13 +4,14 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-14 10:33:07
+# LastEditTime : 2020-10-14 14:04:10
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/config_train.py
 # Description  : 
 #-------------------------------------------# 
 
 distributed = True # distributed training, must be True
 mode = None # set at dataloader, must be None
+resume = True
 
 # workdir = '/lyuan/code/speech-to-text-wavenet/torch_lyuan/exp/debug' # all output you need will be saved here, include ckpt.pth.
 
@@ -20,7 +21,9 @@ mode = None # set at dataloader, must be None
 
 
 # workdir = '/zhzhao/code/wavenet_torch/torch_lyuan/exp_thre_pruning_comp_32/debug' # all output you need will be saved here, include ckpt.pth.
-workdir = '/zhzhao/code/wavenet_torch/torch_lyuan/exp_con_epoch_thre_pruning0_2_32/debug' # all output you need will be saved here, include ckpt.pth.
+# workdir = '/zhzhao/code/wavenet_torch/torch_lyuan/exp_con_epoch_thre_pruning0_2_32/debug' # all output you need will be saved here, include ckpt.pth.
+exp_name = 'dense_32'
+workdir = '/zhzhao/code/wavenet_torch/torch_lyuan/exp_result/'+exp_name+'/debug' # all output you need will be saved here, include ckpt.pth.
 # workdir = '/zhzhao/code/wavenet_torch/torch_lyuan/exp_thre_pruning_comp/debug' # all output you need will be saved here, include ckpt.pth.
 # workdir = '/zhzhao/code/wavenet_torch/torch_lyuan/exp_con_epoch_thre_pruning0_05/debug' # all output you need will be saved here, include ckpt.pth.
 # workdir = '/zhzhao/code/wavenet_torch/torch_lyuan/exp_thre_pruning_comp/debug' # all output you need will be saved here, include ckpt.pth.

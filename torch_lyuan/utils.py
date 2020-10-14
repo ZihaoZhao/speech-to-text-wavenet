@@ -3,6 +3,7 @@ import librosa
 import numpy as np
 import string
 
+
 def collate_fn_(batch_data, max_len=40000):
     audio = batch_data[0]
     audio_len = audio.size(1)
