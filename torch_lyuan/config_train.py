@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-14 08:08:07
+# LastEditTime : 2020-10-14 10:33:07
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/config_train.py
 # Description  : 
 #-------------------------------------------# 
@@ -29,8 +29,11 @@ workdir = '/zhzhao/code/wavenet_torch/torch_lyuan/exp_con_epoch_thre_pruning0_2_
 dataset = '/zhzhao/VCTK'
 datalist = '/zhzhao/code/wavenet_torch/data/list.json'
 
-sparse = 'thre_pruning'#'dense'#'thre_pruning'
-pruning_thre = 0.2
+# sparse_mode = 'thre_pruning'#'dense'#'thre_pruning'
+# pruning_thre = 0.05   ### zero:971, all:2560
+
+sparse_mode = 'sparse_pruning'#'dense'#'thre_pruning'
+sparsity = 0.2   ### zero:971, all:2560
 
 batch_size = 32 # reconmendate 32
 load_from = ''

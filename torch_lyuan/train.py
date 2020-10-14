@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-14 08:08:55
+# LastEditTime : 2020-10-14 10:56:26
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 
 #-------------------------------------------# 
@@ -30,18 +30,23 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         os.mkdir(weights_dir)
     model.train()
 
-    # if os.path.exists('/zhzhao/code/wavenet_torch/torch_lyuan/exp_thre_pruning_comp_32/debug/weights/last.pth'):
-    #     model.load_state_dict(torch.load('/zhzhao/code/wavenet_torch/torch_lyuan/exp_thre_pruning_comp_32/debug/weights/last.pth'))
-    #     print("loading", '/zhzhao/code/wavenet_torch/torch_lyuan/exp_thre_pruning_comp_32/debug/weights/last.pth')
-    if os.path.exists(cfg.workdir + '/weights/last.pth'):
-        model.load_state_dict(torch.load(cfg.workdir + '/weights/last.pth'))
-        print("loading", cfg.workdir + '/weights/last.pth')
+    if os.path.exists('/zhzhao/code/wavenet_torch/torch_lyuan/exp_thre_pruning_comp_32/debug/weights/last.pth'):
+        model.load_state_dict(torch.load('/zhzhao/code/wavenet_torch/torch_lyuan/exp_thre_pruning_comp_32/debug/weights/last.pth'))
+        print("loading", '/zhzhao/code/wavenet_torch/torch_lyuan/exp_thre_pruning_comp_32/debug/weights/last.pth')
+    # if os.path.exists(cfg.workdir + '/weights/last.pth'):
+    #     model.load_state_dict(torch.load(cfg.workdir + '/weights/last.pth'))
+    #     print("loading", cfg.workdir + '/weights/last.pth')
         
+    model = pruning(model, cfg.sparse_mode)
+    sparsity = cal_sparsity(model)
+    print("sparsity:", sparsity)
+
     best_loss = float('inf')
     for epoch in range(cfg.epochs):
         print(f'training epoch{epoch}')
         _loss = 0.0
-        cnt = 0
+        step_cnt = 0
+        
         for data in train_loader:
             wave = data['wave'].cuda()  # [1, 128, 109]
             logits = model(wave)
@@ -53,37 +58,21 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
             loss.backward()
             scheduler.step()
             _loss += loss.data
-            if not _loss.data/(cnt+1) <100:
+            if not _loss.data/(step_cnt+1) <100:
                 print(data['name'])
                 print(data)
                 print(logits)
                 print(text)
                 exit()
-            if cnt % int(10000/cfg.batch_size) == 0:
+
+            if step_cnt % int(10000/cfg.batch_size) == 0:
                 print("Epoch", epoch,
-                        ", train step", cnt, "/", len(train_loader),
-                        ", loss: ", round(float(_loss.data/cnt), 5))
+                        ", train step", step_cnt, "/", len(train_loader),
+                        ", loss: ", round(float(_loss.data/step_cnt), 5))
                 torch.save(model.state_dict(), cfg.workdir+'/weights/last.pth')
 
-            cnt += 1
+            step_cnt += 1
             
-        if cfg.sparse == 'thre_pruning':
-            name_list = list()
-            para_list = list()
-            for name, para in model.named_parameters():
-                # print(name, para.size())
-                name_list.append(name)
-                para_list.append(para)
-
-            a = torch.load(cfg.workdir+'/weights/last.pth')
-            for i, name in enumerate(name_list):
-                raw_w = para_list[i]
-                zero = torch.zeros_like(raw_w)
-                raw_w = torch.where(raw_w < cfg.pruning_thre, zero, raw_w)
-                a[name] = raw_w
-            model.load_state_dict(a)
-
-
         _loss /= len(train_loader)
 
         loss_val = validate(val_loader, model, loss_fn)
@@ -97,10 +86,85 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
             best_loss = loss_val
 
 
+def pruning(model, sparse_mode="dense"):
+    if sparse_mode == 'thre_pruning':
+        name_list = list()
+        para_list = list()
+        for name, para in model.named_parameters():
+            name_list.append(name)
+            para_list.append(para)
+
+        a = torch.load(cfg.workdir+'/weights/last.pth')
+        zero_cnt = 0
+        all_cnt = 0
+        for i, name in enumerate(name_list):
+            raw_w = para_list[i]
+            # raw_w.topk()
+            zero = torch.zeros_like(raw_w)
+            if name.split(".")[-2] != "bn":
+                p_w = torch.where(abs(raw_w) < cfg.pruning_thre, zero, raw_w)
+                zero_cnt += torch.nonzero(p_w).size()[0]
+                all_cnt += torch.nonzero(raw_w).size()[0]
+                a[name] = p_w
+            else:
+                a[name] = raw_w
+        model.load_state_dict(a)
+
+    elif sparse_mode == 'sparse_pruning':
+        name_list = list()
+        para_list = list()
+        for name, para in model.named_parameters():
+            name_list.append(name)
+            para_list.append(para)
+
+        a = torch.load(cfg.workdir+'/weights/last.pth')
+        zero_cnt = 0
+        all_cnt = 0
+        for i, name in enumerate(name_list):
+            raw_w = para_list[i]
+            w_num = torch.nonzero(raw_w).size(0)
+            zero_num = int(w_num * cfg.sparsity)
+            value, _ = torch.topk(raw_w.abs().flatten(), w_num - zero_num)
+            thre = abs(value[-1])
+            zero = torch.zeros_like(raw_w)
+            p_w = torch.where(abs(raw_w) < thre, zero, raw_w)
+            
+            # if name.split(".")[-2] != "bn":
+            #     print(name, float(thre))
+            #     print("all: ", raw_w.flatten().size()[0])
+            #     print("zero: ", raw_w.flatten().size()[0] - torch.nonzero(p_w).size(0))
+            #     print(" ")
+
+            zero_cnt += torch.nonzero(p_w).size()[0]
+            all_cnt += torch.nonzero(raw_w).size()[0]
+            a[name] = p_w
+            
+        model.load_state_dict(a)
+        
+    return model
+
+def cal_sparsity(model):        
+    name_list = list()
+    para_list = list()
+    for name, para in model.named_parameters():
+        name_list.append(name)
+        para_list.append(para)
+
+    zero_cnt = 0
+    all_cnt = 0
+    for i, name in enumerate(name_list):
+        w = para_list[i]
+        if name.split(".")[-2] != "bn":
+            zero_cnt += w.flatten().size()[0] - torch.nonzero(w).size()[0]
+            all_cnt += w.flatten().size()[0]
+
+    return zero_cnt/all_cnt
+
+
 def validate(val_loader, model, loss_fn):
     model.eval()
     _loss = 0.0
-    cnt = 0
+    step_cnt = 0
     for data in val_loader:
         wave = data['wave'].cuda()  # [1, 128, 109]
         logits = model(wave)
@@ -110,10 +174,10 @@ def validate(val_loader, model, loss_fn):
         loss = loss_fn(logits, text, data['length_wave'], data['length_text'])
         _loss += loss.data
         # print(loss)
-        cnt += 1
+        step_cnt += 1
         # if cnt % 10 == 0:
-    print("Val step", cnt, "/", len(val_loader),
-            ", loss: ", round(float(_loss.data/cnt), 5))
+    print("Val step", step_cnt, "/", len(val_loader),
+            ", loss: ", round(float(_loss.data/step_cnt), 5))
 
     #TODO evluate
     
@@ -122,7 +186,12 @@ def validate(val_loader, model, loss_fn):
 
 def main():
     print('initial training...')
-    print(f'work_dir:{cfg.workdir}, pretrained:{cfg.load_from}, batch_size:{cfg.batch_size} lr:{cfg.lr}, epochs:{cfg.epochs}, sparse:{cfg.sparse}')
+    print(f'work_dir:{cfg.workdir}, \n\
+            pretrained: {cfg.load_from},  \n\
+            batch_size: {cfg.batch_size}, \n\
+            lr        : {cfg.lr},         \n\
+            epochs    : {cfg.epochs},     \n\
+            sparse    : {cfg.sparse_mode}')
     writer = SummaryWriter(log_dir=cfg.workdir+'/runs')
 
     # build train data
