@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-13 11:26:51
+# LastEditTime : 2020-10-14 08:08:55
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 
 #-------------------------------------------# 
@@ -30,6 +30,9 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         os.mkdir(weights_dir)
     model.train()
 
+    # if os.path.exists('/zhzhao/code/wavenet_torch/torch_lyuan/exp_thre_pruning_comp_32/debug/weights/last.pth'):
+    #     model.load_state_dict(torch.load('/zhzhao/code/wavenet_torch/torch_lyuan/exp_thre_pruning_comp_32/debug/weights/last.pth'))
+    #     print("loading", '/zhzhao/code/wavenet_torch/torch_lyuan/exp_thre_pruning_comp_32/debug/weights/last.pth')
     if os.path.exists(cfg.workdir + '/weights/last.pth'):
         model.load_state_dict(torch.load(cfg.workdir + '/weights/last.pth'))
         print("loading", cfg.workdir + '/weights/last.pth')
@@ -50,18 +53,37 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
             loss.backward()
             scheduler.step()
             _loss += loss.data
-            cnt += 1
-            if not _loss.data/cnt <100:
+            if not _loss.data/(cnt+1) <100:
                 print(data['name'])
                 print(data)
                 print(logits)
                 print(text)
                 exit()
-            if cnt % 1000 == 0:
+            if cnt % int(10000/cfg.batch_size) == 0:
                 print("Epoch", epoch,
                         ", train step", cnt, "/", len(train_loader),
                         ", loss: ", round(float(_loss.data/cnt), 5))
                 torch.save(model.state_dict(), cfg.workdir+'/weights/last.pth')
+
+            cnt += 1
+            
+        if cfg.sparse == 'thre_pruning':
+            name_list = list()
+            para_list = list()
+            for name, para in model.named_parameters():
+                # print(name, para.size())
+                name_list.append(name)
+                para_list.append(para)
+
+            a = torch.load(cfg.workdir+'/weights/last.pth')
+            for i, name in enumerate(name_list):
+                raw_w = para_list[i]
+                zero = torch.zeros_like(raw_w)
+                raw_w = torch.where(raw_w < cfg.pruning_thre, zero, raw_w)
+                a[name] = raw_w
+            model.load_state_dict(a)
+
+
         _loss /= len(train_loader)
 
         loss_val = validate(val_loader, model, loss_fn)
@@ -87,7 +109,7 @@ def validate(val_loader, model, loss_fn):
         text = data['text'].cuda()
         loss = loss_fn(logits, text, data['length_wave'], data['length_text'])
         _loss += loss.data
-        print(loss)
+        # print(loss)
         cnt += 1
         # if cnt % 10 == 0:
     print("Val step", cnt, "/", len(val_loader),

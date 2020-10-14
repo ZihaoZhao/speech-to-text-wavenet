@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-13 11:37:34
+# LastEditTime : 2020-10-13 15:07:46
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/wavenet.py
 # Description  : 
 #-------------------------------------------# 
@@ -42,8 +42,8 @@ class Aconv1d(nn.Module):
         # padding number = (kernel_size - 1) * dilation / 2
         inputs = F.pad(inputs, (3*self.dilation, 3*self.dilation))
 
-        if cfg.sparse == 'thre_pruning':
-            self.thre_pruning(0.2)
+        # if cfg.sparse == 'thre_pruning':
+        #     self.thre_pruning(0.05)
 
         outputs = self.dilation_conv1d(inputs)
         outputs = self.bn(outputs)
@@ -102,7 +102,9 @@ class WaveNet(nn.Module):
         self.conv1d_out = nn.Conv1d(channels_out, channels_out, kernel_size=1)
         self.get_logits = nn.Conv1d(in_channels=channels_out, out_channels=num_classes, kernel_size=1)
 
-    def forward(self, inputs):
+    def forward(self, inputs, if_pruning=False):
+        if if_pruning:
+            self.thre_pruning(cfg.pruning_thre)
         x = self.bn(self.conv1d(inputs))
         x = torch.tanh(x)
         outs = 0.0
@@ -122,8 +124,15 @@ class WaveNet(nn.Module):
         name_list = list()
         para_list = list()
         for name, para in self.named_parameters():
+            print(name, para.size())
             name_list.append(name)
             para_list.append(para)
+
+        for i, name in enumerate(name_list):
+            raw_w = para_list[i]
+            zero = torch.zeros_like(raw_w)
+            raw_w = torch.where(raw_w < thre, zero, raw_w)
+            setattr(self, name, Parameter(raw_w.data))
             # print(name, raw_w.size())
         # raw_w = getattr(self.module, name_w + '_raw')
         # mask = torch.autograd.Variable(torch.ones(raw_w.size()))
