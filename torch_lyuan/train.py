@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-14 14:04:39
+# LastEditTime : 2020-10-14 14:17:42
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 
 #-------------------------------------------# 
@@ -227,6 +227,7 @@ def main():
     args = parse_args()
     cfg.resume      = args.resume
     cfg.exp_name    = args.exp
+    cfg.workdir     = '/zhzhao/code/wavenet_torch/torch_lyuan/exp_result/'+args.exp+'/debug'
     cfg.sparse_mode = args.sparse_mode
     cfg.sparsity    = args.sparsity
     cfg.load_from   = args.load_from
