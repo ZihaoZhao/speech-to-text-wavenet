@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-15 09:30:50
+# LastEditTime : 2020-10-15 20:32:35
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 
 #-------------------------------------------# 
@@ -33,11 +33,13 @@ def parse_args():
     '''
     Parse input arguments
     '''
-    parser = argparse.ArgumentParser(description='SNN for BMI.')
+    parser = argparse.ArgumentParser(description='WaveNet for speech recognition.')
     parser.add_argument('--resume', action='store_true', help='resume from exp_name/last.pth', default=True)
     parser.add_argument('--exp', type=str, help='exp dir', default="default")
     parser.add_argument('--sparse_mode', type=str, help='dense, sparse_pruning, thre_pruning', default="dense")
     parser.add_argument('--sparsity', type=float, help='0.2, 0.4, 0.8', default=0.2)
+    parser.add_argument('--batch_size', type=int, help='1, 16, 32', default=32)
+    parser.add_argument('--lr', type=float, help='0.001 for tensorflow', default=0.001)
     parser.add_argument('--load_from', type=str, help='.pth', default="not load from pth")
 
     args = parser.parse_args()
@@ -53,7 +55,7 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         beta=0,
         cutoff_top_n=40,
         cutoff_prob=1.0,
-        beam_width=100,
+        beam_width=16,
         num_processes=4,
         blank_id=0,
         log_probs_input=False
@@ -79,7 +81,7 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         _loss = 0.0
         step_cnt = 0
         
-        model = pruning(model, cfg.sparse_mode)
+        # model = pruning(model, cfg.sparse_mode)
         # sparsity = cal_sparsity(model)
         # print("sparsity:", sparsity)
         for data in train_loader:
@@ -87,20 +89,13 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
             logits = model(wave)
             logits = logits.permute(2, 0, 1)
             logits = F.log_softmax(logits, dim=2)
+            # logits = F.softmax(logits, dim=2)
             text = data['text'].cuda()
             loss = loss_fn(logits, text, data['length_wave'], data['length_text'])
             scheduler.zero_grad()
             loss.backward()
             scheduler.step()
             _loss += loss.data   
-            beam_results, beam_scores, timesteps, out_lens = decoder.decode(logits)
-            voc = np.tile(vocabulary, (cfg.batch_size, 1))
-            pred = np.take(voc, beam_results[:,0,:].data.numpy())
-            text_np = np.take(voc, text.data.cpu().numpy().astype(int))
-            print('pred: ', pred[0])
-            print('gt: ', text_np)
-            tp, pred, pos = utils.evalutes(utils.cvt_np2string(pred), utils.cvt_np2string(text_np))
-            print('tp: ', tp, 'pred: ', pred, 'pos: ', pos)
 
             if step_cnt % int(12000/cfg.batch_size) == 1:
                 print("Epoch", epoch,
@@ -108,6 +103,31 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
                         ", loss: ", round(float(_loss.data/step_cnt), 5))
                 torch.save(model.state_dict(), cfg.workdir+'/weights/last.pth')
 
+                beam_results, beam_scores, timesteps, out_lens = decoder.decode(torch.exp(logits))
+                # beam_results, beam_scores, timesteps, out_lens = decoder.decode(logits)
+                zero = torch.zeros_like(beam_results)
+                beam_results = torch.where(beam_results > 27, zero, beam_results)
+                beam_results = torch.where(beam_results < 0, zero, beam_results)
+                voc = np.tile(vocabulary, (cfg.batch_size, 1))
+                pred = np.take(voc, beam_results[:, 0, :].data.numpy())
+                text_np = np.take(voc, text.data.cpu().numpy().astype(int))
+
+                # print('pred: ', pred.transpose(1, 0))
+                print('pred: ')
+                for  i, w in enumerate(pred.transpose(1, 0)[0]):
+                    if w != '<EMP>':
+                        print(w, end="")
+                    elif w == '<EMP>':
+                        break
+
+                print("")
+                print("gt: ")
+                for  i, w in enumerate(pred.transpose(1, 0)[0]):
+                    if i < 256:
+                        print(text_np[0][i], end="")
+                tp, pred, pos = utils.evalutes(utils.cvt_np2string(pred), utils.cvt_np2string(text_np))
+                print('tp: ', tp, 'pred: ', pred, 'pos: ', pos)
+                
             step_cnt += 1
             
         _loss /= len(train_loader)
@@ -179,6 +199,53 @@ def pruning(model, sparse_mode="dense"):
             a[name] = p_w
             
         model.load_state_dict(a)
+
+
+    elif sparse_mode == 'pattern_pruning':
+        pattern_num = 16
+        pattern_shape = [8, 8]
+        pattern_nnz = 32
+
+        name_list = list()
+        para_list = list()
+
+        for name, para in model.named_parameters():
+            name_list.append(name)
+            para_list.append(para)
+
+        a = model.state_dict()
+        zero_cnt = 0
+        all_cnt = 0
+        for i, name in enumerate(name_list):
+            raw_w = para_list[i]
+            w_num = torch.nonzero(raw_w).size(0)
+            
+            # generate the patterns
+            patterns = torch.zeros([pattern_num, pattern_shape[0], pattern_shape[1]])
+            for i in range(pattern_num):
+                for j in range(pattern_nnz):
+                    random_row = np.random.randint(0, pattern_shape[0])
+                    random_col = np.random.randint(0, pattern_shape[1])
+                    while patterns[i, random_row, random_col] == 0:
+                        random_row = np.random.randint(0, pattern_shape[0])
+                        random_col = np.random.randint(0, pattern_shape[1])
+                        patterns[i, random_row, random_col] = 1
+
+            # apply the patterns
+            mask = torch.zeros(raw_w)
+            for k in raw_w.size(0):
+                for ic_p in raw_w.size(1)/ pattern_shape[0]:
+                    for oc_p in raw_w.size(2) / pattern_shape[1]:
+                        mask[k, ic_p * pattern_shape[0]:(ic_p+1) * pattern_shape[0],
+                                oc_p * pattern_shape[1]:(oc_p+1) * pattern_shape[1]] = patterns[np.random.randint(0, pattern_num), :, :]
+
+            p_w = raw_w * mask
+
+            zero_cnt += torch.nonzero(p_w).size()[0]
+            all_cnt += torch.nonzero(raw_w).size()[0]
+            a[name] = p_w
+            
+        model.load_state_dict(a)
         
     return model
 
@@ -229,6 +296,8 @@ def main():
     cfg.workdir     = '/zhzhao/code/wavenet_torch/torch_lyuan/exp_result/' + args.exp + '/debug'
     cfg.sparse_mode = args.sparse_mode
     cfg.sparsity    = args.sparsity
+    cfg.batch_size  = args.batch_size
+    cfg.lr          = args.lr
     cfg.load_from   = args.load_from
     
     print('initial training...')
