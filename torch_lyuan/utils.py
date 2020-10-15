@@ -45,10 +45,10 @@ def cvt_np2string(inputs):
   for input in inputs:
     output = ''
     for i in input:
-      ch = i.decode('utf-8')
-      if ch == '<EMP>':
-        continue
-      output += i.decode('utf-8')
+    #   ch = i.decode('utf-8')
+    #   if ch == '<EMP>':
+    #     continue
+      output += i#.decode('utf-8')
     outputs.append(output)
   return outputs
 

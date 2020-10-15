@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-14 15:00:22
+# LastEditTime : 2020-10-15 09:26:50
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 
 #-------------------------------------------# 
@@ -24,6 +24,7 @@ from ctcdecode import CTCBeamDecoder
 
 from tensorboardX import SummaryWriter
 import os
+import numpy as np
 
 import argparse
 
@@ -79,8 +80,8 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         step_cnt = 0
         
         model = pruning(model, cfg.sparse_mode)
-        sparsity = cal_sparsity(model)
-        print("sparsity:", sparsity)
+        # sparsity = cal_sparsity(model)
+        # print("sparsity:", sparsity)
         for data in train_loader:
             wave = data['wave'].cuda()  # [1, 128, 109]
             logits = model(wave)
@@ -92,10 +93,14 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
             loss.backward()
             scheduler.step()
             _loss += loss.data   
-
-            ### TODO evluate here
-            beam_results, beam_scores, timesteps, out_lens = decoder.decode(logits)  
-            # tp, pred, pos = utils.evalutes(utils.cvt_np2string(logits), utils.cvt_np2string(text))    
+            beam_results, beam_scores, timesteps, out_lens = decoder.decode(logits)
+            voc = np.tile(vocabulary, (cfg.batch_size, 1))
+            pred = np.take(voc, beam_results[:,0,:].data.numpy())
+            text_np = np.take(voc, text.data.cpu().numpy().astype(int))
+            print('pred: ', pred[0])
+            print('gt: ', text_np)
+            tp, pred, pos = utils.evalutes(utils.cvt_np2string(pred), utils.cvt_np2string(text_np))
+            print('tp: ', tp, 'pred: ', pred, 'pos: ', pos)
 
             if step_cnt % int(12000/cfg.batch_size) == 1:
                 print("Epoch", epoch,
@@ -109,6 +114,8 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         writer.add_scalar('train/loss', _loss, epoch)
         torch.cuda.empty_cache()
 
+        model = pruning(model, cfg.sparse_mode)
+        sparsity = cal_sparsity(model)
         loss_val = validate(val_loader, model, loss_fn)
         writer.add_scalar('val/loss', loss_val, epoch)
 

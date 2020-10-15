@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-11 15:28:41
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-13 10:06:03
+# LastEditTime : 2020-10-15 08:55:59
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/dataset.py
 # Description  : 
 #-------------------------------------------# 
@@ -93,6 +93,4 @@ if __name__ == '__main__':
         if tmp > max_text:
             max_length = tmp
     print(f'val set {max_wave}, {max_text}')
-
-
 
