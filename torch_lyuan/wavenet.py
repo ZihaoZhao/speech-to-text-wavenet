@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-13 15:07:46
+# LastEditTime : 2020-10-15 09:31:26
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/wavenet.py
 # Description  : 
 #-------------------------------------------# 

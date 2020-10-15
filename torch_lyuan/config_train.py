@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-14 15:00:09
+# LastEditTime : 2020-10-15 09:31:00
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/config_train.py
 # Description  : 
 #-------------------------------------------# 
