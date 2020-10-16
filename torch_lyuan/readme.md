@@ -13,6 +13,8 @@ cd ctcdecode && pip install .
 
 ps -ef|grep python|cut -c 9-15 |xargs kill -s9
 
+ 	/zhzhao/miniconda3/bin/conda init |conda activate pytorch16 |/zhzhao/miniconda3/envs/pytorch16/bin/python /zhzhao/code/wavenet_torch/torch_lyuan/train.py --exp dense_32_001 --load_from /zhzhao/code/wavenet_torch/torch_lyuan/exp_result/dense_32_001/debug/weights/last.pth
+    
 CUDA_VISIBLE_DEVICES=0 screen python train.py --exp dense_32
 
 CUDA_VISIBLE_DEVICES=1 screen python train.py --exp sparse_020_32 --load_from /zhzhao/code/wavenet_torch/torch_lyuan/exp_result/dense_32/debug/weights/last.pth --sparse_mode sparse_pruning --sparsity 0.2
