@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-15 20:32:35
+# LastEditTime : 2020-10-16 16:37:40
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 
 #-------------------------------------------# 
@@ -39,7 +39,7 @@ def parse_args():
     parser.add_argument('--sparse_mode', type=str, help='dense, sparse_pruning, thre_pruning', default="dense")
     parser.add_argument('--sparsity', type=float, help='0.2, 0.4, 0.8', default=0.2)
     parser.add_argument('--batch_size', type=int, help='1, 16, 32', default=32)
-    parser.add_argument('--lr', type=float, help='0.001 for tensorflow', default=0.001)
+    parser.add_argument('--lr', type=float, help='0.001 for tensorflow', default=0.01)
     parser.add_argument('--load_from', type=str, help='.pth', default="not load from pth")
 
     args = parser.parse_args()
@@ -249,6 +249,50 @@ def pruning(model, sparse_mode="dense"):
         
     return model
 
+def save_pattern():
+    
+    pattern_num = 16
+    pattern_shape = [16, 16]
+    pattern_nnz = 32
+    sparsity = pattern_nnz / (pattern_shape[0] * pattern_shape[1])
+    patterns = dict()
+
+    name_list = list()
+    para_list = list()
+
+    for name, para in model.named_parameters():
+        name_list.append(name)
+        para_list.append(para)
+
+    a = model.state_dict()
+    zero_cnt = 0
+    all_cnt = 0
+    for i, name in enumerate(name_list):
+        raw_w = para_list[i]
+        for k in raw_w.size(0):
+            for ic_p in raw_w.size(1)/ pattern_shape[0]:
+                for oc_p in raw_w.size(2) / pattern_shape[1]:
+                    part_w = raw_w[k, ic_p * pattern_shape[0]:(ic_p+1) * pattern_shape[0],
+                                        oc_p * pattern_shape[1]:(oc_p+1) * pattern_shape[1]]
+                    value, _ = torch.topk(part_w.abs().flatten(), pattern_nnz)
+
+                    # pruning
+                    thre = abs(value[-1])
+                    zero = torch.zeros_like(part_w)
+                    part_w_p = torch.where(abs(part_w) < thre, zero, part_w)
+                    raw_w[k, ic_p * pattern_shape[0]:(ic_p+1) * pattern_shape[0],
+                                        oc_p * pattern_shape[1]:(oc_p+1) * pattern_shape[1]] = part_w_p
+
+                    # save the pattern
+                    ones = torch.ones_like(part_w)
+                    pattern = torch.where(abs(part_w) < thre, zero, ones)
+                    if pattern not in patterns.keys():
+                        patterns[pattern] = 1
+                    else:
+                        patterns[pattern] += 1
+
+    return patterns
+    
 def cal_sparsity(model):        
     name_list = list()
     para_list = list()
