@@ -99,7 +99,7 @@ def pruning(model, sparse_mode='dense'):
             # apply the patterns
             mask = torch.zeros_like(raw_w)
             if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
-                print(name, raw_w.size(), pattern_shape)
+                # print(name, raw_w.size(), pattern_shape)
                 if raw_w.size(0) % pattern_shape[0] == 0 and raw_w.size(1) % pattern_shape[1] == 0:
                     for k in range(raw_w.size(2)):
                         assert raw_w.size(0) % pattern_shape[0] == 0, f'{raw_w.size(0)} {pattern_shape[0]}'
