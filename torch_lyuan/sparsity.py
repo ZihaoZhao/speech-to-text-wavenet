@@ -73,32 +73,17 @@ def pruning(model, sparse_mode='dense'):
         for i, name in enumerate(name_list):
             raw_w = para_list[i]
             w_num = torch.nonzero(raw_w).size(0)
-            
-
+        
             # apply the patterns
-            mask = torch.zeros_like(raw_w)
-            if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
-                print(name, raw_w.size(), pattern_shape)
-                if raw_w.size(0) % pattern_shape[0] == 0 and raw_w.size(1) % pattern_shape[1] == 0:
-                    for k in range(raw_w.size(2)):
-                        assert raw_w.size(0) % pattern_shape[0] == 0, f'{raw_w.size(0)} {pattern_shape[0]}'
-                        for ic_p in range(raw_w.size(0) // pattern_shape[0]):
-                            assert raw_w.size(1) % pattern_shape[1] == 0, f'{raw_w.size(1)} {pattern_shape[1]}'
-                            for oc_p in range(raw_w.size(1) // pattern_shape[1]):
-                                mask[ic_p * pattern_shape[0]:(ic_p+1) * pattern_shape[0],
-                                    oc_p * pattern_shape[1]:(oc_p+1) * pattern_shape[1], k] = cfg.patterns[np.random.randint(0, pattern_num), :, :]
-
-                    p_w = raw_w * mask
-                    zero_cnt += torch.nonzero(p_w).size()[0]
-                    all_cnt += torch.nonzero(raw_w).size()[0]            
-                    a[name] = p_w
-            else:
-                a[name] = raw_w
-                print("not pruning", name)   
+            mask = cfg.pattern_mask[name]
+            p_w = raw_w * mask
+            a[name] = p_w
 
     elif sparse_mode == 'coo_pruning':
         name_list = list()
         para_list = list()
+        pattern_shape  = cfg.coo_shape
+        coo_nnz = cfg.coo_nnz 
 
         for name, para in model.named_parameters():
             name_list.append(name)
@@ -121,19 +106,22 @@ def pruning(model, sparse_mode='dense'):
                         for ic_p in range(raw_w.size(0) // pattern_shape[0]):
                             assert raw_w.size(1) % pattern_shape[1] == 0, f'{raw_w.size(1)} {pattern_shape[1]}'
                             for oc_p in range(raw_w.size(1) // pattern_shape[1]):
-                                
-
-
+                                part_w = raw_w[ic_p * pattern_shape[0]:(ic_p+1) * pattern_shape[0],
+                                    oc_p * pattern_shape[1]:(oc_p+1) * pattern_shape[1], k] 
+                                value, _ = torch.topk(part_w.abs().flatten(), coo_nnz)
+                                thre = abs(value[-1])
+                                zero = torch.zeros_like(part_w)
+                                one = torch.ones_like(part_w)
+                                part_mask = torch.where(abs(part_w) < thre, zero, one)
                                 mask[ic_p * pattern_shape[0]:(ic_p+1) * pattern_shape[0],
-                                    oc_p * pattern_shape[1]:(oc_p+1) * pattern_shape[1], k] = cfg.patterns[np.random.randint(0, pattern_num), :, :]
+                                oc_p * pattern_shape[1]:(oc_p+1) * pattern_shape[1], k] = part_mask
 
                     p_w = raw_w * mask
                     zero_cnt += torch.nonzero(p_w).size()[0]
                     all_cnt += torch.nonzero(raw_w).size()[0]            
                     a[name] = p_w
             else:
-                a[name] = raw_w
-                print("not pruning", name)    
+                a[name] = raw_w  
 
 
             
@@ -164,6 +152,8 @@ def generate_pattern_mask(model, patterns):
     name_list = list()
     para_list = list()
     patterns_mask = dict()
+    pattern_shape = [patterns.size(1), patterns.size(2)]
+    pattern_num = patterns.size(0)
 
     for name, para in model.named_parameters():
         name_list.append(name)
@@ -187,6 +177,9 @@ def generate_pattern_mask(model, patterns):
                                 oc_p * pattern_shape[1]:(oc_p+1) * pattern_shape[1], k] = cfg.patterns[np.random.randint(0, pattern_num), :, :]
 
                 patterns_mask[name] = mask
+
+            else:
+                patterns_mask[name] = torch.ones_like(raw_w)
         else:
             patterns_mask[name] = torch.ones_like(raw_w)
 

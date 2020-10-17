@@ -39,11 +39,11 @@ def parse_args():
     parser.add_argument('--exp', type=str, help='exp dir', default="default")
     parser.add_argument('--sparse_mode', type=str, help='dense, sparse_pruning, thre_pruning, pattern_pruning', default="dense")
     parser.add_argument('--sparsity', type=float, help='0.2, 0.4, 0.8', default=0.2)
-    parser.add_argument('--pattern_para', type=list, help='[pt_num, [pt_shape0, pt_shape1], nnz]', default=[16, [16,16], 128])
-    parser.add_argument('--coo_para', type=list, help='[[pt_shape0, pt_shape1], nnz]', default=[[8,8], 32])
+    parser.add_argument('--pattern_para', type=str, help='[pt_num_pt_shape0_pt_shape1_nnz]', default='16_16_16_128')
+    parser.add_argument('--coo_para', type=str, help='[pt_shape0, pt_shape1, nnz]', default='8_8_32')
     parser.add_argument('--batch_size', type=int, help='1, 16, 32', default=32)
-    parser.add_argument('--lr', type=float, help='0.001 for tensorflow', default=0.01)
-    parser.add_argument('--load_from', type=str, help='.pth', default="not load from pth")
+    parser.add_argument('--lr', type=float, help='0.001 for tensorflow', default=0.001)
+    parser.add_argument('--load_from', type=str, help='.pth', default="/zhzhao/code/wavenet_torch/torch_lyuan/exp_result/dense_32_001_1212_best.pth")
 
     args = parser.parse_args()
     return args
@@ -84,11 +84,11 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         _loss = 0.0
         step_cnt = 0
         
-        model = pruning(model, cfg.sparse_mode)
         # sparsity = cal_sparsity(model)
         # print("sparsity:", sparsity)
         for data in train_loader:
             wave = data['wave'].cuda()  # [1, 128, 109]
+            model = pruning(model, cfg.sparse_mode)
             logits = model(wave)
             logits = logits.permute(2, 0, 1)
             logits = F.log_softmax(logits, dim=2)
@@ -206,15 +206,16 @@ def main():
         cfg.sparsity = args.sparsity
         print(f'sparse_pruning {cfg.sparsity}')
     elif cfg.sparse_mode == 'pattern_pruning':
-        pattern_num   = args.pattern_para[0]
-        pattern_shape = args.pattern_para[1]
-        pattern_nnz   = args.pattern_para[2]
+        print(args.pattern_para)
+        pattern_num   = int(args.pattern_para.split('_')[0])
+        pattern_shape = [int(args.pattern_para.split('_')[1]), int(args.pattern_para.split('_')[2])]
+        pattern_nnz   = int(args.pattern_para.split('_')[3])
+        print(f'pattern_pruning {pattern_num} [{pattern_shape[0]}, {pattern_shape[1]}] {pattern_nnz}')
         cfg.patterns = generate_pattern(pattern_num, pattern_shape, pattern_nnz)
         cfg.pattern_mask = generate_pattern_mask(model, cfg.patterns)
-        print(f'pattern_pruning {pattern_num} [{pattern_shape[0]}, {pattern_shape[1]}] {pattern_nnz}')
     elif cfg.sparse_mode == 'coo_pruning':
-        cfg.coo_shape   = args.coo_para[0]
-        cfg.coo_nnz = args.coo_para[1]
+        cfg.coo_shape   = [int(args.pattern_para.split('_')[0]), int(args.pattern_para.split('_')[1])]
+        cfg.coo_nnz   = int(args.pattern_para.split('_')[2])
         # cfg.patterns = generate_pattern(pattern_num, pattern_shape, pattern_nnz)
         print(f'coo_pruning [{cfg.coo_shape[0]}, {cfg.coo_shape[1]}] {cfg.coo_nnz}')
     elif cfg.sparse_mode == 'ptcoo_pruning':
