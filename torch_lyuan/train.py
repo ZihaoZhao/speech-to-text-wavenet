@@ -18,6 +18,7 @@ import torch.nn.functional as F
 import config_train as cfg
 from dataset import VCTK
 from wavenet import WaveNet
+from sparsity import *
 import utils
 
 from ctcdecode import CTCBeamDecoder
@@ -34,10 +35,12 @@ def parse_args():
     Parse input arguments
     '''
     parser = argparse.ArgumentParser(description='WaveNet for speech recognition.')
-    parser.add_argument('--resume', action='store_true', help='resume from exp_name/last.pth', default=True)
+    parser.add_argument('--resume', action='store_true', help='resume from exp_name/best.pth', default=False)
     parser.add_argument('--exp', type=str, help='exp dir', default="default")
-    parser.add_argument('--sparse_mode', type=str, help='dense, sparse_pruning, thre_pruning', default="dense")
+    parser.add_argument('--sparse_mode', type=str, help='dense, sparse_pruning, thre_pruning, pattern_pruning', default="dense")
     parser.add_argument('--sparsity', type=float, help='0.2, 0.4, 0.8', default=0.2)
+    parser.add_argument('--pattern_para', type=list, help='[pt_num, [pt_shape0, pt_shape1], nnz]', default=[16, [16,16], 128])
+    parser.add_argument('--coo_para', type=list, help='[[pt_shape0, pt_shape1], nnz]', default=[[8,8], 32])
     parser.add_argument('--batch_size', type=int, help='1, 16, 32', default=32)
     parser.add_argument('--lr', type=float, help='0.001 for tensorflow', default=0.01)
     parser.add_argument('--load_from', type=str, help='.pth', default="not load from pth")
@@ -66,9 +69,9 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         os.mkdir(weights_dir)
     model.train()
 
-    if cfg.resume and os.path.exists(cfg.workdir + '/weights/last.pth'):
-        model.load_state_dict(torch.load(cfg.workdir + '/weights/last.pth'))
-        print("loading", cfg.workdir + '/weights/last.pth')
+    if cfg.resume and os.path.exists(cfg.workdir + '/weights/best.pth'):
+        model.load_state_dict(torch.load(cfg.workdir + '/weights/best.pth'))
+        print("loading", cfg.workdir + '/weights/best.pth')
 
     if os.path.exists(cfg.load_from):
         model.load_state_dict(torch.load(cfg.load_from))
@@ -81,7 +84,7 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         _loss = 0.0
         step_cnt = 0
         
-        # model = pruning(model, cfg.sparse_mode)
+        model = pruning(model, cfg.sparse_mode)
         # sparsity = cal_sparsity(model)
         # print("sparsity:", sparsity)
         for data in train_loader:
@@ -103,30 +106,30 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
                         ", loss: ", round(float(_loss.data/step_cnt), 5))
                 torch.save(model.state_dict(), cfg.workdir+'/weights/last.pth')
 
-                beam_results, beam_scores, timesteps, out_lens = decoder.decode(torch.exp(logits))
-                # beam_results, beam_scores, timesteps, out_lens = decoder.decode(logits)
-                zero = torch.zeros_like(beam_results)
-                beam_results = torch.where(beam_results > 27, zero, beam_results)
-                beam_results = torch.where(beam_results < 0, zero, beam_results)
-                voc = np.tile(vocabulary, (cfg.batch_size, 1))
-                pred = np.take(voc, beam_results[:, 0, :].data.numpy())
-                text_np = np.take(voc, text.data.cpu().numpy().astype(int))
+                # beam_results, beam_scores, timesteps, out_lens = decoder.decode(torch.exp(logits))
+                # # beam_results, beam_scores, timesteps, out_lens = decoder.decode(logits)
+                # zero = torch.zeros_like(beam_results)
+                # beam_results = torch.where(beam_results > 27, zero, beam_results)
+                # beam_results = torch.where(beam_results < 0, zero, beam_results)
+                # voc = np.tile(vocabulary, (cfg.batch_size, 1))
+                # pred = np.take(voc, beam_results[:, 0, :].data.numpy())
+                # text_np = np.take(voc, text.data.cpu().numpy().astype(int))
 
-                # print('pred: ', pred.transpose(1, 0))
-                print('pred: ')
-                for  i, w in enumerate(pred.transpose(1, 0)[0]):
-                    if w != '<EMP>':
-                        print(w, end="")
-                    elif w == '<EMP>':
-                        break
+                # # print('pred: ', pred.transpose(1, 0))
+                # print('pred: ')
+                # for  i, w in enumerate(pred.transpose(1, 0)[0]):
+                #     if w != '<EMP>':
+                #         print(w, end="")
+                #     elif w == '<EMP>':
+                #         break
 
-                print("")
-                print("gt: ")
-                for  i, w in enumerate(pred.transpose(1, 0)[0]):
-                    if i < 256:
-                        print(text_np[0][i], end="")
-                tp, pred, pos = utils.evalutes(utils.cvt_np2string(pred), utils.cvt_np2string(text_np))
-                print('tp: ', tp, 'pred: ', pred, 'pos: ', pos)
+                # print("")
+                # print("gt: ")
+                # for  i, w in enumerate(pred.transpose(1, 0)[0]):
+                #     if i < 256:
+                #         print(text_np[0][i], end="")
+                # tp, pred, pos = utils.evalutes(utils.cvt_np2string(pred), utils.cvt_np2string(text_np))
+                # print('tp: ', tp, 'pred: ', pred, 'pos: ', pos)
                 
             step_cnt += 1
             
@@ -143,172 +146,6 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
             torch.save(model.state_dict(), cfg.workdir+'/weights/best.pth')
             print("saved", cfg.workdir+'/weights/best.pth')
             best_loss = loss_val
-
-
-def pruning(model, sparse_mode="dense"):
-    if sparse_mode == 'thre_pruning':
-        name_list = list()
-        para_list = list()
-        for name, para in model.named_parameters():
-            name_list.append(name)
-            para_list.append(para)
-
-        a = model.state_dict()
-        zero_cnt = 0
-        all_cnt = 0
-        for i, name in enumerate(name_list):
-            raw_w = para_list[i]
-            # raw_w.topk()
-            zero = torch.zeros_like(raw_w)
-            if name.split(".")[-2] != "bn":
-                p_w = torch.where(abs(raw_w) < cfg.pruning_thre, zero, raw_w)
-                zero_cnt += torch.nonzero(p_w).size()[0]
-                all_cnt += torch.nonzero(raw_w).size()[0]
-                a[name] = p_w
-            else:
-                a[name] = raw_w
-        model.load_state_dict(a)
-
-    elif sparse_mode == 'sparse_pruning':
-        name_list = list()
-        para_list = list()
-        for name, para in model.named_parameters():
-            name_list.append(name)
-            para_list.append(para)
-
-        a = model.state_dict()
-        zero_cnt = 0
-        all_cnt = 0
-        for i, name in enumerate(name_list):
-            raw_w = para_list[i]
-            w_num = torch.nonzero(raw_w).size(0)
-            zero_num = int(w_num * cfg.sparsity)
-            value, _ = torch.topk(raw_w.abs().flatten(), w_num - zero_num)
-            thre = abs(value[-1])
-            zero = torch.zeros_like(raw_w)
-            p_w = torch.where(abs(raw_w) < thre, zero, raw_w)
-            
-            # if name.split(".")[-2] != "bn":
-            #     print(name, float(thre))
-            #     print("all: ", raw_w.flatten().size()[0])
-            #     print("zero: ", raw_w.flatten().size()[0] - torch.nonzero(p_w).size(0))
-            #     print(" ")
-
-            zero_cnt += torch.nonzero(p_w).size()[0]
-            all_cnt += torch.nonzero(raw_w).size()[0]
-            a[name] = p_w
-            
-        model.load_state_dict(a)
-
-
-    elif sparse_mode == 'pattern_pruning':
-        pattern_num = 16
-        pattern_shape = [8, 8]
-        pattern_nnz = 32
-
-        name_list = list()
-        para_list = list()
-
-        for name, para in model.named_parameters():
-            name_list.append(name)
-            para_list.append(para)
-
-        a = model.state_dict()
-        zero_cnt = 0
-        all_cnt = 0
-        for i, name in enumerate(name_list):
-            raw_w = para_list[i]
-            w_num = torch.nonzero(raw_w).size(0)
-            
-            # generate the patterns
-            patterns = torch.zeros([pattern_num, pattern_shape[0], pattern_shape[1]])
-            for i in range(pattern_num):
-                for j in range(pattern_nnz):
-                    random_row = np.random.randint(0, pattern_shape[0])
-                    random_col = np.random.randint(0, pattern_shape[1])
-                    while patterns[i, random_row, random_col] == 0:
-                        random_row = np.random.randint(0, pattern_shape[0])
-                        random_col = np.random.randint(0, pattern_shape[1])
-                        patterns[i, random_row, random_col] = 1
-
-            # apply the patterns
-            mask = torch.zeros(raw_w)
-            for k in raw_w.size(0):
-                for ic_p in raw_w.size(1)/ pattern_shape[0]:
-                    for oc_p in raw_w.size(2) / pattern_shape[1]:
-                        mask[k, ic_p * pattern_shape[0]:(ic_p+1) * pattern_shape[0],
-                                oc_p * pattern_shape[1]:(oc_p+1) * pattern_shape[1]] = patterns[np.random.randint(0, pattern_num), :, :]
-
-            p_w = raw_w * mask
-
-            zero_cnt += torch.nonzero(p_w).size()[0]
-            all_cnt += torch.nonzero(raw_w).size()[0]
-            a[name] = p_w
-            
-        model.load_state_dict(a)
-        
-    return model
-
-def save_pattern():
-    
-    pattern_num = 16
-    pattern_shape = [16, 16]
-    pattern_nnz = 32
-    sparsity = pattern_nnz / (pattern_shape[0] * pattern_shape[1])
-    patterns = dict()
-
-    name_list = list()
-    para_list = list()
-
-    for name, para in model.named_parameters():
-        name_list.append(name)
-        para_list.append(para)
-
-    a = model.state_dict()
-    zero_cnt = 0
-    all_cnt = 0
-    for i, name in enumerate(name_list):
-        raw_w = para_list[i]
-        for k in raw_w.size(0):
-            for ic_p in raw_w.size(1)/ pattern_shape[0]:
-                for oc_p in raw_w.size(2) / pattern_shape[1]:
-                    part_w = raw_w[k, ic_p * pattern_shape[0]:(ic_p+1) * pattern_shape[0],
-                                        oc_p * pattern_shape[1]:(oc_p+1) * pattern_shape[1]]
-                    value, _ = torch.topk(part_w.abs().flatten(), pattern_nnz)
-
-                    # pruning
-                    thre = abs(value[-1])
-                    zero = torch.zeros_like(part_w)
-                    part_w_p = torch.where(abs(part_w) < thre, zero, part_w)
-                    raw_w[k, ic_p * pattern_shape[0]:(ic_p+1) * pattern_shape[0],
-                                        oc_p * pattern_shape[1]:(oc_p+1) * pattern_shape[1]] = part_w_p
-
-                    # save the pattern
-                    ones = torch.ones_like(part_w)
-                    pattern = torch.where(abs(part_w) < thre, zero, ones)
-                    if pattern not in patterns.keys():
-                        patterns[pattern] = 1
-                    else:
-                        patterns[pattern] += 1
-
-    return patterns
-    
-def cal_sparsity(model):        
-    name_list = list()
-    para_list = list()
-    for name, para in model.named_parameters():
-        name_list.append(name)
-        para_list.append(para)
-
-    zero_cnt = 0
-    all_cnt = 0
-    for i, name in enumerate(name_list):
-        w = para_list[i]
-        if name.split(".")[-2] != "bn":
-            zero_cnt += w.flatten().size()[0] - torch.nonzero(w).size()[0]
-            all_cnt += w.flatten().size()[0]
-
-    return zero_cnt/all_cnt
 
 
 def validate(val_loader, model, loss_fn):
@@ -339,10 +176,10 @@ def main():
     cfg.exp_name    = args.exp
     cfg.workdir     = '/zhzhao/code/wavenet_torch/torch_lyuan/exp_result/' + args.exp + '/debug'
     cfg.sparse_mode = args.sparse_mode
-    cfg.sparsity    = args.sparsity
     cfg.batch_size  = args.batch_size
     cfg.lr          = args.lr
     cfg.load_from   = args.load_from
+    
     
     print('initial training...')
     print(f'work_dir:{cfg.workdir}, \n\
@@ -364,6 +201,28 @@ def main():
     model = WaveNet(num_classes=28, channels_in=20, dilations=[1,2,4,8,16])
     model = nn.DataParallel(model)
     model.cuda()
+
+    if cfg.sparse_mode == 'sparse_pruning':
+        cfg.sparsity = args.sparsity
+        print(f'sparse_pruning {cfg.sparsity}')
+    elif cfg.sparse_mode == 'pattern_pruning':
+        pattern_num   = args.pattern_para[0]
+        pattern_shape = args.pattern_para[1]
+        pattern_nnz   = args.pattern_para[2]
+        cfg.patterns = generate_pattern(pattern_num, pattern_shape, pattern_nnz)
+        cfg.pattern_mask = generate_pattern_mask(model, cfg.patterns)
+        print(f'pattern_pruning {pattern_num} [{pattern_shape[0]}, {pattern_shape[1]}] {pattern_nnz}')
+    elif cfg.sparse_mode == 'coo_pruning':
+        cfg.coo_shape   = args.coo_para[0]
+        cfg.coo_nnz = args.coo_para[1]
+        # cfg.patterns = generate_pattern(pattern_num, pattern_shape, pattern_nnz)
+        print(f'coo_pruning [{cfg.coo_shape[0]}, {cfg.coo_shape[1]}] {cfg.coo_nnz}')
+    elif cfg.sparse_mode == 'ptcoo_pruning':
+        pattern_num   = args.pattern_para[0]
+        pattern_shape = args.pattern_para[1]
+        pattern_nnz   = args.pattern_para[2]
+        cfg.patterns = generate_pattern(pattern_num, pattern_shape, pattern_nnz)
+        print(f'pattern_pruning {pattern_num} [{pattern_shape[0]}, {pattern_shape[1]}] {pattern_nnz}')
 
     # build loss
     loss_fn = nn.CTCLoss()
