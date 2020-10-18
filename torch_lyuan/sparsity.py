@@ -124,8 +124,64 @@ def pruning(model, sparse_mode='dense'):
             else:
                 a[name] = raw_w  
 
+        model.load_state_dict(a)
+        
+    elif sparse_mode == 'ptcoo_pruning':
+        name_list = list()
+        para_list = list()
+        pattern_shape  = cfg.pattern_shape
+        pt_nnz  = cfg.pt_nnz
+        coo_nnz = cfg.coo_nnz 
 
+        for name, para in model.named_parameters():
+            name_list.append(name)
+            para_list.append(para)
+
+        a = model.state_dict()
+        zero_cnt = 0
+        all_cnt = 0
+        for i, name in enumerate(name_list):            
+            raw_w = para_list[i]
+            w_num = torch.nonzero(raw_w).size(0)
+        
+            # apply the patterns
+            mask = cfg.pattern_mask[name]
+            not_mask = torch.ones_like(cfg.pattern_mask[name]) - mask
+            not_p_w = raw_w * not_mask
+
+
+            raw_w = para_list[i]
+            w_num = torch.nonzero(raw_w).size(0)
             
+            # apply the patterns
+            # mask = torch.zeros_like(raw_w)
+            if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+                # print(name, raw_w.size(), pattern_shape)
+                if raw_w.size(0) % pattern_shape[0] == 0 and raw_w.size(1) % pattern_shape[1] == 0:
+                    for k in range(raw_w.size(2)):
+                        assert raw_w.size(0) % pattern_shape[0] == 0, f'{raw_w.size(0)} {pattern_shape[0]}'
+                        for ic_p in range(raw_w.size(0) // pattern_shape[0]):
+                            assert raw_w.size(1) % pattern_shape[1] == 0, f'{raw_w.size(1)} {pattern_shape[1]}'
+                            for oc_p in range(raw_w.size(1) // pattern_shape[1]):
+                                not_part_w = not_p_w[ic_p * pattern_shape[0]:(ic_p+1) * pattern_shape[0],
+                                    oc_p * pattern_shape[1]:(oc_p+1) * pattern_shape[1], k] 
+                                value, _ = torch.topk(not_part_w.abs().flatten(), coo_nnz)
+                                thre = abs(value[-1])
+                                zero = torch.zeros_like(not_part_w)
+                                one = torch.ones_like(not_part_w)
+                                part_mask = torch.where(abs(not_part_w) < thre, zero, one)
+                                mask[ic_p * pattern_shape[0]:(ic_p+1) * pattern_shape[0],
+                                oc_p * pattern_shape[1]:(oc_p+1) * pattern_shape[1], k] += part_mask
+
+                    p_w = raw_w * mask
+                    zero_cnt += torch.nonzero(p_w).size()[0]
+                    all_cnt += torch.nonzero(raw_w).size()[0]            
+                    a[name] = p_w
+                else:
+                    a[name] = raw_w  
+            else:
+                a[name] = raw_w  
+
         model.load_state_dict(a)
         
     else:

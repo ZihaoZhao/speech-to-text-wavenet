@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-16 16:37:40
+# LastEditTime : 2020-10-18 16:27:25
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 
 #-------------------------------------------# 
@@ -41,6 +41,7 @@ def parse_args():
     parser.add_argument('--sparsity', type=float, help='0.2, 0.4, 0.8', default=0.2)
     parser.add_argument('--pattern_para', type=str, help='[pt_num_pt_shape0_pt_shape1_nnz]', default='16_16_16_128')
     parser.add_argument('--coo_para', type=str, help='[pt_shape0, pt_shape1, nnz]', default='8_8_32')
+    parser.add_argument('--ptcoo_para', type=str, help='[pt_shape0, pt_shape1, pt_nnz, coo_nnz]', default='16_16_128_64')
     parser.add_argument('--batch_size', type=int, help='1, 16, 32', default=32)
     parser.add_argument('--lr', type=float, help='0.001 for tensorflow', default=0.001)
     parser.add_argument('--load_from', type=str, help='.pth', default="/z")
@@ -219,9 +220,9 @@ def main():
         # cfg.patterns = generate_pattern(pattern_num, pattern_shape, pattern_nnz)
         print(f'coo_pruning [{cfg.coo_shape[0]}, {cfg.coo_shape[1]}] {cfg.coo_nnz}')
     elif cfg.sparse_mode == 'ptcoo_pruning':
-        pattern_num   = args.pattern_para[0]
-        pattern_shape = args.pattern_para[1]
-        pattern_nnz   = args.pattern_para[2]
+        cfg.pattern_shape = [int(args.ptcoo_para.split('_')[0]), int(args.ptcoo_para.split('_')[1])]
+        cfg.pt_nnz   = int(args.ptcoo_para.split('_')[2])
+        cfg.coo_nnz   = int(args.ptcoo_para.split('_')[2])
         cfg.patterns = generate_pattern(pattern_num, pattern_shape, pattern_nnz)
         print(f'pattern_pruning {pattern_num} [{pattern_shape[0]}, {pattern_shape[1]}] {pattern_nnz}')
 
