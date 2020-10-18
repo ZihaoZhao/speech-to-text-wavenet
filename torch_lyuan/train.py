@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-18 19:23:21
+# LastEditTime : 2020-10-18 20:59:57
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 
 #-------------------------------------------# 
@@ -101,7 +101,7 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
             scheduler.step()
             _loss += loss.data   
 
-            if step_cnt % 1==1:#int(12000/cfg.batch_size) == 1:
+            if step_cnt % int(12000/cfg.batch_size) == 1:
                 print("Epoch", epoch,
                         ", train step", step_cnt, "/", len(train_loader),
                         ", loss: ", round(float(_loss.data/step_cnt), 5))
@@ -142,10 +142,11 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
 
         model = pruning(model, cfg.sparse_mode)
         sparsity = cal_sparsity(model)
+        print(sparsity)
         loss_val = validate(val_loader, model, loss_fn)
         writer.add_scalar('val/loss', loss_val, epoch)
 
-        # TODO best_loss maintian 5 epoch then exit()
+
         if loss_val < best_loss:
             not_better_cnt = 0
             torch.save(model.state_dict(), cfg.workdir+'/weights/best.pth')
