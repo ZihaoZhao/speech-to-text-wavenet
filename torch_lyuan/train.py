@@ -43,7 +43,7 @@ def parse_args():
     parser.add_argument('--coo_para', type=str, help='[pt_shape0, pt_shape1, nnz]', default='8_8_32')
     parser.add_argument('--batch_size', type=int, help='1, 16, 32', default=32)
     parser.add_argument('--lr', type=float, help='0.001 for tensorflow', default=0.001)
-    parser.add_argument('--load_from', type=str, help='.pth', default="/zhzhao/code/wavenet_torch/torch_lyuan/exp_result/dense_32_001_1212_best.pth")
+    parser.add_argument('--load_from', type=str, help='.pth', default="/z")
 
     args = parser.parse_args()
     return args
@@ -214,8 +214,8 @@ def main():
         cfg.patterns = generate_pattern(pattern_num, pattern_shape, pattern_nnz)
         cfg.pattern_mask = generate_pattern_mask(model, cfg.patterns)
     elif cfg.sparse_mode == 'coo_pruning':
-        cfg.coo_shape   = [int(args.pattern_para.split('_')[0]), int(args.pattern_para.split('_')[1])]
-        cfg.coo_nnz   = int(args.pattern_para.split('_')[2])
+        cfg.coo_shape   = [int(args.coo_para.split('_')[0]), int(args.coo_para.split('_')[1])]
+        cfg.coo_nnz   = int(args.coo_para.split('_')[2])
         # cfg.patterns = generate_pattern(pattern_num, pattern_shape, pattern_nnz)
         print(f'coo_pruning [{cfg.coo_shape[0]}, {cfg.coo_shape[1]}] {cfg.coo_nnz}')
     elif cfg.sparse_mode == 'ptcoo_pruning':

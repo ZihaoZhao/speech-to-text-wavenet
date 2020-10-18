@@ -78,6 +78,7 @@ def pruning(model, sparse_mode='dense'):
             mask = cfg.pattern_mask[name]
             p_w = raw_w * mask
             a[name] = p_w
+        model.load_state_dict(a)
 
     elif sparse_mode == 'coo_pruning':
         name_list = list()
