@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-18 16:53:15
+# LastEditTime : 2020-10-18 19:23:21
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 
 #-------------------------------------------# 
@@ -101,12 +101,14 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
             scheduler.step()
             _loss += loss.data   
 
-            if step_cnt % int(12000/cfg.batch_size) == 1:
+            if step_cnt % 1==1:#int(12000/cfg.batch_size) == 1:
                 print("Epoch", epoch,
                         ", train step", step_cnt, "/", len(train_loader),
                         ", loss: ", round(float(_loss.data/step_cnt), 5))
                 torch.save(model.state_dict(), cfg.workdir+'/weights/last.pth')
 
+
+                # TODO get the correct evaluate results
                 # beam_results, beam_scores, timesteps, out_lens = decoder.decode(torch.exp(logits))
                 # # beam_results, beam_scores, timesteps, out_lens = decoder.decode(logits)
                 # zero = torch.zeros_like(beam_results)
@@ -143,11 +145,17 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         loss_val = validate(val_loader, model, loss_fn)
         writer.add_scalar('val/loss', loss_val, epoch)
 
+        # TODO best_loss maintian 5 epoch then exit()
         if loss_val < best_loss:
+            not_better_cnt = 0
             torch.save(model.state_dict(), cfg.workdir+'/weights/best.pth')
-            print("saved", cfg.workdir+'/weights/best.pth')
+            print("saved", cfg.workdir+'/weights/best.pth', not_better_cnt)
             best_loss = loss_val
+        else:
+            not_better_cnt += 1
 
+        if not_better_cnt > 4:
+            exit()
 
 def validate(val_loader, model, loss_fn):
     model.eval()

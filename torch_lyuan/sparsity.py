@@ -75,7 +75,7 @@ def pruning(model, sparse_mode='dense'):
             w_num = torch.nonzero(raw_w).size(0)
         
             # apply the patterns
-            mask = cfg.pattern_mask[name]
+            mask = torch.tensor(cfg.pattern_mask[name])
             p_w = raw_w * mask
             a[name] = p_w
         model.load_state_dict(a)
@@ -121,6 +121,8 @@ def pruning(model, sparse_mode='dense'):
                     zero_cnt += torch.nonzero(p_w).size()[0]
                     all_cnt += torch.nonzero(raw_w).size()[0]            
                     a[name] = p_w
+                else:
+                    a[name] = raw_w  
             else:
                 a[name] = raw_w  
 
@@ -145,7 +147,7 @@ def pruning(model, sparse_mode='dense'):
             w_num = torch.nonzero(raw_w).size(0)
         
             # apply the patterns
-            mask = cfg.pattern_mask[name]
+            mask = torch.tensor(cfg.pattern_mask[name])
             not_mask = torch.ones_like(cfg.pattern_mask[name]) - mask
             not_p_w = raw_w * not_mask
 
@@ -172,6 +174,7 @@ def pruning(model, sparse_mode='dense'):
                                 part_mask = torch.where(abs(not_part_w) < thre, zero, one)
                                 mask[ic_p * pattern_shape[0]:(ic_p+1) * pattern_shape[0],
                                 oc_p * pattern_shape[1]:(oc_p+1) * pattern_shape[1], k] += part_mask
+
 
                     p_w = raw_w * mask
                     zero_cnt += torch.nonzero(p_w).size()[0]
