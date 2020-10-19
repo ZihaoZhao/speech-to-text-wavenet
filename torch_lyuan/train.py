@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-18 20:59:57
+# LastEditTime : 2020-10-19 15:22:42
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 
 #-------------------------------------------# 
@@ -101,6 +101,9 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
             scheduler.step()
             _loss += loss.data   
 
+            if epoch == 0 and step_cnt == 10:
+                writer.add_scalar('train/loss', _loss, epoch)
+
             if step_cnt % int(12000/cfg.batch_size) == 1:
                 print("Epoch", epoch,
                         ", train step", step_cnt, "/", len(train_loader),
@@ -155,7 +158,7 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         else:
             not_better_cnt += 1
 
-        if not_better_cnt > 4:
+        if not_better_cnt > 3:
             exit()
 
 def validate(val_loader, model, loss_fn):
