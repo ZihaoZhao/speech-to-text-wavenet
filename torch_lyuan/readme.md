@@ -1,7 +1,7 @@
 <!--
  * @Author: your name
  * @Date: 2020-10-17 18:33:49
- * @LastEditTime : 2020-10-18 16:53:39
+ * @LastEditTime : 2020-10-19 08:56:25
  * @LastEditors  : Zihao Zhao
  * @Description: In User Settings Edit
  * @FilePath     : /speech-to-text-wavenet/torch_lyuan/readme.md
@@ -60,11 +60,11 @@ ps -ef|grep python|cut -c 9-15 |xargs kill -s9
 
 # exp coo-sparsity
 ```
-/zhzhao/miniconda3/bin/conda init | conda activate pytorch16 | /zhzhao/miniconda3/envs/pytorch16/bin/python /zhzhao/code/wavenet_torch/torch_lyuan/train.py --exp coo_8_8_32 --sparse_mode coo_pruning --pattern_para 8_8_32 --load_from /zhzhao/code/wavenet_torch/torch_lyuan/exp_result/dense_32_001_1212_best.pth
+/zhzhao/miniconda3/bin/conda init | conda activate pytorch16 | /zhzhao/miniconda3/envs/pytorch16/bin/python /zhzhao/code/wavenet_torch/torch_lyuan/train.py --exp coo_8_8_32 --sparse_mode coo_pruning --coo_para 8_8_32 --load_from /zhzhao/code/wavenet_torch/torch_lyuan/exp_result/dense_32_001_1212_best.pth
 
-/zhzhao/miniconda3/bin/conda init | conda activate pytorch16 | /zhzhao/miniconda3/envs/pytorch16/bin/python /zhzhao/code/wavenet_torch/torch_lyuan/train.py --exp coo_8_8_16 --sparse_mode coo_pruning --pattern_para 8_8_16 --load_from /zhzhao/code/wavenet_torch/torch_lyuan/exp_result/dense_32_001_1212_best.pth
+/zhzhao/miniconda3/bin/conda init | conda activate pytorch16 | /zhzhao/miniconda3/envs/pytorch16/bin/python /zhzhao/code/wavenet_torch/torch_lyuan/train.py --exp coo_8_8_16 --sparse_mode coo_pruning --coo_para 8_8_16 --load_from /zhzhao/code/wavenet_torch/torch_lyuan/exp_result/dense_32_001_1212_best.pth
 
-/zhzhao/miniconda3/bin/conda init | conda activate pytorch16 | /zhzhao/miniconda3/envs/pytorch16/bin/python /zhzhao/code/wavenet_torch/torch_lyuan/train.py --exp coo_8_8_48 --sparse_mode coo_pruning --pattern_para 8_8_48 --load_from /zhzhao/code/wavenet_torch/torch_lyuan/exp_result/dense_32_001_1212_best.pth
+/zhzhao/miniconda3/bin/conda init | conda activate pytorch16 | /zhzhao/miniconda3/envs/pytorch16/bin/python /zhzhao/code/wavenet_torch/torch_lyuan/train.py --exp coo_8_8_48 --sparse_mode coo_pruning --coo_para 8_8_48 --load_from /zhzhao/code/wavenet_torch/torch_lyuan/exp_result/dense_32_001_1212_best.pth
 ```
 
 # exp ptcoo-sparsity
