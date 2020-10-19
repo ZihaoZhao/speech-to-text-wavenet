@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-19 15:22:42
+# LastEditTime : 2020-10-19 19:28:12
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 
 #-------------------------------------------# 
@@ -51,19 +51,19 @@ def parse_args():
 
 def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
     
-    vocabulary = utils.Data.vocabulary
-    decoder = CTCBeamDecoder(
-        vocabulary,
-        model_path=None,
-        alpha=0,
-        beta=0,
-        cutoff_top_n=40,
-        cutoff_prob=1.0,
-        beam_width=16,
-        num_processes=4,
-        blank_id=0,
-        log_probs_input=False
-    )
+    # vocabulary = utils.Data.vocabulary
+    # decoder = CTCBeamDecoder(
+    #     vocabulary,
+    #     model_path=None,
+    #     alpha=0,
+    #     beta=0,
+    #     cutoff_top_n=40,
+    #     cutoff_prob=1.0,
+    #     beam_width=16,
+    #     num_processes=4,
+    #     blank_id=0,
+    #     log_probs_input=False
+    # )
 
     weights_dir = os.path.join(cfg.workdir, 'weights')
     if not os.path.exists(weights_dir):
@@ -90,6 +90,11 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         for data in train_loader:
             wave = data['wave'].cuda()  # [1, 128, 109]
             model = pruning(model, cfg.sparse_mode)
+
+            if epoch == 0 and step_cnt == 0:
+                loss_val = validate(val_loader, model, loss_fn)
+                writer.add_scalar('val/loss', loss_val, epoch)
+                
             logits = model(wave)
             logits = logits.permute(2, 0, 1)
             logits = F.log_softmax(logits, dim=2)
@@ -205,7 +210,7 @@ def main():
 
     # build train data
     vctk_train = VCTK(cfg, 'train')
-    train_loader = DataLoader(vctk_train,batch_size=cfg.batch_size, num_workers=8, shuffle=False, pin_memory=True)
+    train_loader = DataLoader(vctk_train,batch_size=cfg.batch_size, num_workers=8, shuffle=True, pin_memory=True)
 
     vctk_val = VCTK(cfg, 'val')
     val_loader = DataLoader(vctk_val, batch_size=cfg.batch_size, num_workers=8, shuffle=False, pin_memory=True)
