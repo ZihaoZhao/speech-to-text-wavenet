@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-19 19:28:12
+# LastEditTime : 2020-10-19 20:47:43
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 
 #-------------------------------------------# 
@@ -20,6 +20,7 @@ from dataset import VCTK
 from wavenet import WaveNet
 from sparsity import *
 import utils
+import visualize as vis
 
 from ctcdecode import CTCBeamDecoder
 
@@ -36,6 +37,8 @@ def parse_args():
     '''
     parser = argparse.ArgumentParser(description='WaveNet for speech recognition.')
     parser.add_argument('--resume', action='store_true', help='resume from exp_name/best.pth', default=False)
+    parser.add_argument('--vis_mask', action='store_true', help='visualize and save masks', default=False)
+    parser.add_argument('--vis_pattern', action='store_true', help='visualize and save patterns', default=False)
     parser.add_argument('--exp', type=str, help='exp dir', default="default")
     parser.add_argument('--sparse_mode', type=str, help='dense, sparse_pruning, thre_pruning, pattern_pruning', default="dense")
     parser.add_argument('--sparsity', type=float, help='0.2, 0.4, 0.8', default=0.2)
@@ -65,18 +68,6 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
     #     log_probs_input=False
     # )
 
-    weights_dir = os.path.join(cfg.workdir, 'weights')
-    if not os.path.exists(weights_dir):
-        os.mkdir(weights_dir)
-    model.train()
-
-    if cfg.resume and os.path.exists(cfg.workdir + '/weights/best.pth'):
-        model.load_state_dict(torch.load(cfg.workdir + '/weights/best.pth'))
-        print("loading", cfg.workdir + '/weights/best.pth')
-
-    if os.path.exists(cfg.load_from):
-        model.load_state_dict(torch.load(cfg.load_from))
-        print("loading", cfg.load_from)
         
 
     best_loss = float('inf')
@@ -197,8 +188,7 @@ def main():
     cfg.batch_size  = args.batch_size
     cfg.lr          = args.lr
     cfg.load_from   = args.load_from
-    
-    
+
     print('initial training...')
     print(f'work_dir:{cfg.workdir}, \n\
             pretrained: {cfg.load_from},  \n\
@@ -219,6 +209,25 @@ def main():
     model = WaveNet(num_classes=28, channels_in=20, dilations=[1,2,4,8,16])
     model = nn.DataParallel(model)
     model.cuda()
+
+    weights_dir = os.path.join(cfg.workdir, 'weights')
+    if not os.path.exists(weights_dir):
+        os.mkdir(weights_dir)
+    if not os.path.exists(cfg.vis_dir):
+        os.mkdir(cfg.vis_dir)
+    cfg.vis_dir = os.path.join(cfg.vis_dir, cfg.exp_name)
+    if not os.path.exists(cfg.vis_dir):
+        os.mkdir(cfg.vis_dir)
+    model.train()
+
+    if cfg.resume and os.path.exists(cfg.workdir + '/weights/best.pth'):
+        model.load_state_dict(torch.load(cfg.workdir + '/weights/best.pth'))
+        print("loading", cfg.workdir + '/weights/best.pth')
+
+    if os.path.exists(cfg.load_from):
+        model.load_state_dict(torch.load(cfg.load_from))
+        print("loading", cfg.load_from)
+
 
     if cfg.sparse_mode == 'sparse_pruning':
         cfg.sparsity = args.sparsity
@@ -245,6 +254,28 @@ def main():
         cfg.pattern_mask = generate_pattern_mask(model, cfg.patterns)
         print(f'ptcoo_pruning {cfg.pattern_num} [{cfg.pattern_shape[0]}, {cfg.pattern_shape[1]}] {cfg.pt_nnz} {cfg.coo_nnz}')
 
+
+    if args.vis_mask == True:
+        name_list = list()
+        para_list = list()
+        for name, para in model.named_parameters():
+            name_list.append(name)
+            para_list.append(para)
+
+        for i, name in enumerate(name_list):
+            raw_w = para_list[i]
+            
+            zero = torch.zeros_like(raw_w)
+            one = torch.ones_like(raw_w)
+            mask = torch.where(raw_w == 0, zero, one)
+            vis.save_visualized_mask(mask, name)
+        exit()
+
+    if args.vis_pattern == True:
+        pattern_count_dict = find_pattern_model(model, [16,16])
+        patterns = pattern_count_dict.keys()
+        vis.save_visualized_pattern(patterns)
+        exit()
     # build loss
     loss_fn = nn.CTCLoss()
 

@@ -75,7 +75,8 @@ def pruning(model, sparse_mode='dense'):
             w_num = torch.nonzero(raw_w).size(0)
         
             # apply the patterns
-            mask = torch.tensor(cfg.pattern_mask[name])
+            # mask = torch.tensor(cfg.pattern_mask[name])
+            mask = cfg.pattern_mask[name].clone().detach()
             p_w = raw_w * mask
             a[name] = p_w
         model.load_state_dict(a)
@@ -147,7 +148,8 @@ def pruning(model, sparse_mode='dense'):
             w_num = torch.nonzero(raw_w).size(0)
         
             # apply the patterns
-            mask = torch.tensor(cfg.pattern_mask[name])
+            # mask = torch.tensor(cfg.pattern_mask[name])
+            mask = cfg.pattern_mask[name].clone().detach()
             not_mask = torch.ones_like(cfg.pattern_mask[name]) - mask
             not_p_w = raw_w * not_mask
 
@@ -246,7 +248,7 @@ def generate_pattern_mask(model, patterns):
 
     return patterns_mask
 
-def save_pattern():
+def find_pattern_certain_nnz(model):
     
     pattern_num = 16
     pattern_shape = [16, 16]
@@ -289,7 +291,54 @@ def save_pattern():
                         patterns[pattern] += 1
 
     return patterns
+
+def find_pattern_model(model, pattern_shape):
     
+    patterns = dict()
+
+    name_list = list()
+    para_list = list()
+
+    for name, para in model.named_parameters():
+        name_list.append(name)
+        para_list.append(para)
+
+    for i, name in enumerate(name_list):
+        raw_w = para_list[i]
+        new_patterns = find_pattern_layer(raw_w, pattern_shape)
+        patterns = add_dict(patterns, new_patterns)
+
+    return patterns
+
+def find_pattern_layer(raw_w, pattern_shape):
+    
+    patterns = dict()
+
+    for k in raw_w.size(0):
+        for ic_p in raw_w.size(1)/ pattern_shape[0]:
+            for oc_p in raw_w.size(2) / pattern_shape[1]:
+                part_w = raw_w[k, ic_p * pattern_shape[0]:(ic_p+1) * pattern_shape[0],
+                                    oc_p * pattern_shape[1]:(oc_p+1) * pattern_shape[1]]
+
+                zero = torch.zeros_like(part_w)
+                one = torch.ones_like(part_w)
+                pattern = torch.where(part_w == 0, zero, one)
+
+                if pattern not in patterns.keys():
+                    patterns[pattern] = 1
+                else:
+                    patterns[pattern] += 1
+
+    return patterns
+
+def add_dict(x, y):
+    for k,v in x.items():
+        if k in y.keys():
+            y[k] += v
+        else:
+            y[k] = v
+    return y
+
 def cal_sparsity(model):        
     name_list = list()
     para_list = list()

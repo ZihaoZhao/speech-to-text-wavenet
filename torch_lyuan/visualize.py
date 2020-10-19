@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-19 16:38:18
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-19 16:42:31
+# LastEditTime : 2020-10-19 20:45:13
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/visualize.py
 # Description  : 
 #-------------------------------------------# 
@@ -16,6 +16,7 @@ from matplotlib.colors import LinearSegmentedColormap
 import cv2
 import imageio
 import os
+import config_train as cfg
 
 
 def visualize(input):
@@ -23,14 +24,23 @@ def visualize(input):
     plt.colorbar()
     plt.show()
 
-
-def save_visualize(input, image_name):
-    plt.matshow(input, cmap='hot')
-    # plt.matshow(input_image, cmap='hot', vmin = 0, vmax = 1)
-    # plt.colorbar()
-    plt.savefig(image_name, dpi=300)
+def save_visualized_mask(input, tensor_name):
+    mask_dir = os.path.join(cfg.vis_dir, "mask")
+    if not os.path.exists(mask_dir):
+        os.mkdir(mask_dir)
+    # plt.matshow(input, cmap='hot')
+    for k in range(input.size(2)):
+        plt.matshow(input[:,:,k].numpy(), cmap='hot', vmin = 0, vmax = 1)
+        plt.savefig(os.path.join(mask_dir, tensor_name+"_"+str(k)+".png"), dpi=300)
         
-def save_pattern(model):
+def save_visualized_pattern(patterns):
+    patterns_dir = os.path.join(cfg.vis_dir, "pattern")
+    if not os.path.exists(patterns_dir):
+        os.mkdir(patterns_dir)
+
+    for i in range(len(patterns)):
+        plt.matshow(patterns[i,:,:].numpy(), cmap='hot', vmin = 0, vmax = 1)
+        plt.savefig(os.path.join(patterns_dir, str(i)+".png"), dpi=300)
 
 
 if __name__ == '__main__':

@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-15 17:23:26
+# LastEditTime : 2020-10-19 20:38:51
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/config_train.py
 # Description  : 
 #-------------------------------------------# 
@@ -21,6 +21,8 @@ resume = True
 
 exp_name = 'dense_32'
 # workdir = '/zhzhao/code/wavenet_torch/torch_lyuan/exp_result/' + exp_name + '/debug' # all output you need will be saved here, include ckpt.pth.
+
+vis_dir = '/lyuan/code/speech-to-text-wavenet/torch_lyuan/vis'
 
 # path setting
 dataset = '/zhzhao/VCTK'

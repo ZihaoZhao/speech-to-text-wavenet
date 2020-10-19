@@ -1,7 +1,7 @@
 <!--
  * @Author: your name
  * @Date: 2020-10-17 18:33:49
- * @LastEditTime : 2020-10-19 19:17:57
+ * @LastEditTime : 2020-10-19 20:57:30
  * @LastEditors  : Zihao Zhao
  * @Description: In User Settings Edit
  * @FilePath     : /speech-to-text-wavenet/torch_lyuan/readme.md
@@ -80,6 +80,13 @@ ps -ef|grep python|cut -c 9-15 |xargs kill -s9
 /zhzhao/miniconda3/bin/conda init | conda activate pytorch16 | /zhzhao/miniconda3/envs/pytorch16/bin/python /zhzhao/code/wavenet_torch/torch_lyuan/train.py --exp ptcoo_16_1616_80_48 --sparse_mode ptcoo_pruning --ptcoo_para 16_16_16_80_48 --load_from /zhzhao/code/wavenet_torch/torch_lyuan/exp_result/dense_32_001_1212_best.pth
 
 /zhzhao/miniconda3/bin/conda init | conda activate pytorch16 | /zhzhao/miniconda3/envs/pytorch16/bin/python /zhzhao/code/wavenet_torch/torch_lyuan/train.py --exp ptcoo_16_1616_32_32 --sparse_mode ptcoo_pruning --ptcoo_para 16_16_16_32_32 --load_from /zhzhao/code/wavenet_torch/torch_lyuan/exp_result/dense_32_001_1212_best.pth
+```
+
+# exp visualiztion
+```
+vis_mask: /zhzhao/miniconda3/envs/pytorch16/bin/python /zhzhao/code/wavenet_torch/torch_lyuan/train.py --exp pt_16_1616_192 --resume --vis_mask
+
+vis_pattern: /zhzhao/miniconda3/envs/pytorch16/bin/python /zhzhao/code/wavenet_torch/torch_lyuan/train.py --exp pt_16_1616_192 --resume --vis_pattern
 ```
 
 # former
