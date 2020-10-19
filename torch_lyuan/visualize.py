@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-19 16:38:18
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-19 20:45:13
+# LastEditTime : 2020-10-19 21:00:34
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/visualize.py
 # Description  : 
 #-------------------------------------------# 
@@ -12,9 +12,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib
-from matplotlib.colors import LinearSegmentedColormap
-import cv2
-import imageio
 import os
 import config_train as cfg
 
