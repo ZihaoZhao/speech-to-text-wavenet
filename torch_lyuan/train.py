@@ -277,17 +277,19 @@ def main():
             para_list.append(para)
 
         for i, name in enumerate(name_list):
-            raw_w = para_list[i]
-            
-            zero = torch.zeros_like(raw_w)
-            one = torch.ones_like(raw_w)
-            mask = torch.where(raw_w == 0, zero, one)
-            vis.save_visualized_mask(mask, name)
+            if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+                raw_w = para_list[i]
+
+                zero = torch.zeros_like(raw_w)
+                one = torch.ones_like(raw_w)
+
+                mask = torch.where(raw_w == 0, zero, one)
+                vis.save_visualized_mask(mask, name)
         exit()
 
     if args.vis_pattern == True:
         pattern_count_dict = find_pattern_model(model, [16,16])
-        patterns = pattern_count_dict.keys()
+        patterns = list(pattern_count_dict.keys())
         vis.save_visualized_pattern(patterns)
         exit()
     # build loss

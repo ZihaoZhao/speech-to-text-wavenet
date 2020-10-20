@@ -304,9 +304,10 @@ def find_pattern_model(model, pattern_shape):
         para_list.append(para)
 
     for i, name in enumerate(name_list):
-        raw_w = para_list[i]
-        new_patterns = find_pattern_layer(raw_w, pattern_shape)
-        patterns = add_dict(patterns, new_patterns)
+        if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+            raw_w = para_list[i]
+            new_patterns = find_pattern_layer(raw_w, pattern_shape)
+            patterns = add_dict(patterns, new_patterns)
 
     return patterns
 
@@ -314,9 +315,9 @@ def find_pattern_layer(raw_w, pattern_shape):
     
     patterns = dict()
 
-    for k in raw_w.size(0):
-        for ic_p in raw_w.size(1)/ pattern_shape[0]:
-            for oc_p in raw_w.size(2) / pattern_shape[1]:
+    for k in range(raw_w.size(2)):
+        for ic_p in range(int(raw_w.size(0)/ pattern_shape[0])):
+            for oc_p in range(int(raw_w.size(1) / pattern_shape[1])):
                 part_w = raw_w[k, ic_p * pattern_shape[0]:(ic_p+1) * pattern_shape[0],
                                     oc_p * pattern_shape[1]:(oc_p+1) * pattern_shape[1]]
 

@@ -27,7 +27,7 @@ def save_visualized_mask(input, tensor_name):
         os.mkdir(mask_dir)
     # plt.matshow(input, cmap='hot')
     for k in range(input.size(2)):
-        plt.matshow(input[:,:,k].numpy(), cmap='hot', vmin = 0, vmax = 1)
+        plt.matshow(input[:,:,k].cpu().numpy(), cmap='hot', vmin = 0, vmax = 1)
         plt.savefig(os.path.join(mask_dir, tensor_name+"_"+str(k)+".png"), dpi=300)
         
 def save_visualized_pattern(patterns):
@@ -36,7 +36,8 @@ def save_visualized_pattern(patterns):
         os.mkdir(patterns_dir)
 
     for i in range(len(patterns)):
-        plt.matshow(patterns[i,:,:].numpy(), cmap='hot', vmin = 0, vmax = 1)
+        print(patterns[i].cpu().numpy())
+        plt.matshow(patterns[i].cpu().numpy(), cmap='hot', vmin = 0, vmax = 1)
         plt.savefig(os.path.join(patterns_dir, str(i)+".png"), dpi=300)
 
 
