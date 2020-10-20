@@ -42,8 +42,6 @@ class Aconv1d(nn.Module):
         # padding number = (kernel_size - 1) * dilation / 2
         inputs = F.pad(inputs, (3*self.dilation, 3*self.dilation))
 
-        # if cfg.sparse == 'thre_pruning':
-        #     self.thre_pruning(0.05)
 
         outputs = self.dilation_conv1d(inputs)
         outputs = self.bn(outputs)
@@ -54,24 +52,6 @@ class Aconv1d(nn.Module):
             outputs = torch.tanh(outputs)
         return outputs
 
-    def thre_pruning(self, thre):
-        # print(self.dilation_conv1d.named_parameters())
-        for name, para in self.dilation_conv1d.named_parameters():
-            name_w = name
-            raw_w = para
-            # print(name, raw_w.size())
-        # raw_w = getattr(self.module, name_w + '_raw')
-        # mask = torch.autograd.Variable(torch.ones(raw_w.size()))
-        # mask = torch.nn.functional.dropout(mask, p=0.2, training=True)
-        # mask.cuda()
-        # w = torch.mul(mask, raw_w)
-        # setattr(self.dilation_conv1d, name_w, torch.mul(mask, raw_w))
-
-        ## threshold prunning
-        zero = torch.zeros_like(raw_w)
-        raw_w = torch.where(raw_w < thre, zero, raw_w)
-        setattr(self.dilation_conv1d, name_w, Parameter(raw_w.data))
-        # exit()
 
 class ResnetBlock(nn.Module):
     def __init__(self, dilation, channel_in, channel_out, activate='sigmoid'):
@@ -79,7 +59,7 @@ class ResnetBlock(nn.Module):
         self.conv_filter = Aconv1d(dilation, channel_in, channel_out, activate='tanh')
         self.conv_gate = Aconv1d(dilation, channel_in, channel_out, activate='sigmoid')
 
-        self.conv1d = nn.Conv1d(channel_out, out_channels=128, kernel_size=1)
+        self.conv1d = nn.Conv1d(channel_out, out_channels=128, kernel_size=1, bias=False)
         self.bn = nn.BatchNorm1d(128)
 
     def forward(self, inputs):
@@ -95,16 +75,14 @@ class WaveNet(nn.Module):
     def __init__(self, num_classes, channels_in, channels_out=128, num_layers=3, dilations=[1,2,4,8,16]): # dilations=[1,2,4]
         super(WaveNet, self).__init__()
         self.num_layers = num_layers
-        self.conv1d = nn.Conv1d(in_channels=channels_in, out_channels=channels_out, kernel_size=1)
+        self.conv1d = nn.Conv1d(in_channels=channels_in, out_channels=channels_out, kernel_size=1, bias=False)
         self.bn = nn.BatchNorm1d(channels_out)
 
         self.resnet_block = nn.ModuleList([ResnetBlock(dilation, channels_out, channels_out) for dilation in dilations])
-        self.conv1d_out = nn.Conv1d(channels_out, channels_out, kernel_size=1)
+        self.conv1d_out = nn.Conv1d(channels_out, channels_out, kernel_size=1, bias=False)
         self.get_logits = nn.Conv1d(in_channels=channels_out, out_channels=num_classes, kernel_size=1)
 
-    def forward(self, inputs, if_pruning=False):
-        if if_pruning:
-            self.thre_pruning(cfg.pruning_thre)
+    def forward(self, inputs):
         x = self.bn(self.conv1d(inputs))
         x = torch.tanh(x)
         outs = 0.0
@@ -119,32 +97,6 @@ class WaveNet(nn.Module):
 
         return logits
 
-    def thre_pruning(self, thre):
-        # print(self.dilation_conv1d.named_parameters())
-        name_list = list()
-        para_list = list()
-        for name, para in self.named_parameters():
-            print(name, para.size())
-            name_list.append(name)
-            para_list.append(para)
-
-        for i, name in enumerate(name_list):
-            raw_w = para_list[i]
-            zero = torch.zeros_like(raw_w)
-            raw_w = torch.where(raw_w < thre, zero, raw_w)
-            setattr(self, name, Parameter(raw_w.data))
-            # print(name, raw_w.size())
-        # raw_w = getattr(self.module, name_w + '_raw')
-        # mask = torch.autograd.Variable(torch.ones(raw_w.size()))
-        # mask = torch.nn.functional.dropout(mask, p=0.2, training=True)
-        # mask.cuda()
-        # w = torch.mul(mask, raw_w)
-        # setattr(self.dilation_conv1d, name_w, torch.mul(mask, raw_w))
-
-        # ## threshold prunning
-        # zero = torch.zeros_like(raw_w)
-        # raw_w = torch.where(raw_w < thre, zero, raw_w)
-        # setattr(self.dilation_conv1d, name_w, Parameter(raw_w.data))
 
 
 

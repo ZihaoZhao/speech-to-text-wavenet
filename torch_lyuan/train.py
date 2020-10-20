@@ -64,7 +64,7 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         beta=0,
         cutoff_top_n=40,
         cutoff_prob=1.0,
-        beam_width=16,
+        beam_width=100,
         num_processes=4,
         blank_id=0,
         log_probs_input=False
@@ -102,7 +102,7 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
             if epoch == 0 and step_cnt == 10:
                 writer.add_scalar('train/loss', _loss, epoch)
 
-            if step_cnt % int(100/cfg.batch_size) == 1:
+            if step_cnt % int(3200/cfg.batch_size) == 1:
                 print("Epoch", epoch,
                         ", train step", step_cnt, "/", len(train_loader),
                         ", loss: ", round(float(_loss.data/step_cnt), 5))
@@ -110,7 +110,7 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
 
 
                 # TODO get the correct evaluate results
-                beam_results, beam_scores, timesteps, out_lens = decoder.decode(torch.exp(logits.permute(1, 0, 2)))
+                beam_results, beam_scores, timesteps, out_lens = decoder.decode(logits.permute(1, 0, 2))
                 print(logits.size())
                 # print(out_lens[0][0])
                 print(beam_results[0][0][:out_lens[0][0]])
@@ -119,10 +119,10 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
 
                 print(" ")
                 for n in data['text'][0]:
-                    print(vocabulary[n],end = '')
-                # exit()
+                    print(vocabulary[int(n)],end = '')
                 print(" ")
                 
+                # exit()
                 # # beam_results, beam_scores, timesteps, out_lens = decoder.decode(logits)
                 # zero = torch.zeros_like(beam_results)
                 # beam_results = torch.where(beam_results > 27, zero, beam_results)
@@ -168,7 +168,7 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         else:
             not_better_cnt += 1
 
-        if not_better_cnt > 3:
+        if not_better_cnt > 5:
             exit()
 
 def validate(val_loader, model, loss_fn):
@@ -293,7 +293,7 @@ def main():
         vis.save_visualized_pattern(patterns)
         exit()
     # build loss
-    loss_fn = nn.CTCLoss()
+    loss_fn = nn.CTCLoss(blank=0, reduction='none')
 
     #
     scheduler = optim.Adam(model.parameters(), lr=cfg.lr, eps=1e-4)
