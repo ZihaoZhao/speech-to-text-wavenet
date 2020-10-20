@@ -1,3 +1,13 @@
+#----------------description----------------# 
+# Author       : Zihao Zhao
+# E-mail       : zhzhao18@fudan.edu.cn
+# Company      : Fudan University
+# Date         : 2020-10-10 17:40:40
+# LastEditors  : Zihao Zhao
+# LastEditTime : 2020-10-20 11:19:57
+# FilePath     : /speech-to-text-wavenet/dataset.py
+# Description  : 
+#-------------------------------------------# 
 import tensorflow as tf
 
 
@@ -21,6 +31,8 @@ def create(filepath, batch_size=1, repeat=False, buffsize=1000):
     return audio, text, shape[0], features['uid']
 
   dataset = tf.data.TFRecordDataset(filepath).map(_parse).batch(batch_size=batch_size)
+#   print(len(dataset))
+#   exit()
   if buffsize > 0:
     dataset = dataset.shuffle(buffer_size=buffsize)
   if repeat:

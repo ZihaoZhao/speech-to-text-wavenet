@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-11 15:28:41
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-15 09:31:13
+# LastEditTime : 2020-10-20 17:21:34
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/dataset.py
 # Description  : 
 #-------------------------------------------# 
@@ -48,6 +48,7 @@ class VCTK(Dataset):
         wave[:,:length_wave] = wave_tmp
 
         text_tmp = utils.read_txt(txt_path)  # list
+        # print("text:", text_tmp)
         length_text = len(text_tmp)
         text_tmp = torch.tensor(text_tmp)
         text = torch.zeros([self.max_text]) # 256 may be too short, fix it, if error

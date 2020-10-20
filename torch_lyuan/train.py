@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-19 21:01:56
+# LastEditTime : 2020-10-20 17:18:18
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 
 #-------------------------------------------# 
@@ -39,7 +39,7 @@ def parse_args():
     parser.add_argument('--resume', action='store_true', help='resume from exp_name/best.pth', default=False)
     parser.add_argument('--vis_mask', action='store_true', help='visualize and save masks', default=False)
     parser.add_argument('--vis_pattern', action='store_true', help='visualize and save patterns', default=False)
-    parser.add_argument('--exp', type=str, help='exp dir', default="default")
+    parser.add_argument('--exp', type=str, help='exp dir', default="dense")
     parser.add_argument('--sparse_mode', type=str, help='dense, sparse_pruning, thre_pruning, pattern_pruning', default="dense")
     parser.add_argument('--sparsity', type=float, help='0.2, 0.4, 0.8', default=0.2)
     parser.add_argument('--pattern_para', type=str, help='[pt_num_pt_shape0_pt_shape1_nnz]', default='16_16_16_128')
@@ -54,19 +54,21 @@ def parse_args():
 
 def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
     
-    # vocabulary = utils.Data.vocabulary
-    # decoder = CTCBeamDecoder(
-    #     vocabulary,
-    #     model_path=None,
-    #     alpha=0,
-    #     beta=0,
-    #     cutoff_top_n=40,
-    #     cutoff_prob=1.0,
-    #     beam_width=16,
-    #     num_processes=4,
-    #     blank_id=0,
-    #     log_probs_input=False
-    # )
+    decoder_vocabulary = utils.Data.decoder_vocabulary
+    vocabulary = utils.Data.vocabulary
+    decoder = CTCBeamDecoder(
+        decoder_vocabulary,
+        #"_abcdefghijklmopqrstuvwxyz_",
+        model_path=None,
+        alpha=0,
+        beta=0,
+        cutoff_top_n=40,
+        cutoff_prob=1.0,
+        beam_width=16,
+        num_processes=4,
+        blank_id=0,
+        log_probs_input=False
+    )
 
         
 
@@ -100,7 +102,7 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
             if epoch == 0 and step_cnt == 10:
                 writer.add_scalar('train/loss', _loss, epoch)
 
-            if step_cnt % int(12000/cfg.batch_size) == 1:
+            if step_cnt % int(100/cfg.batch_size) == 1:
                 print("Epoch", epoch,
                         ", train step", step_cnt, "/", len(train_loader),
                         ", loss: ", round(float(_loss.data/step_cnt), 5))
@@ -108,7 +110,19 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
 
 
                 # TODO get the correct evaluate results
-                # beam_results, beam_scores, timesteps, out_lens = decoder.decode(torch.exp(logits))
+                beam_results, beam_scores, timesteps, out_lens = decoder.decode(torch.exp(logits.permute(1, 0, 2)))
+                print(logits.size())
+                # print(out_lens[0][0])
+                print(beam_results[0][0][:out_lens[0][0]])
+                for n in beam_results[0][0][:out_lens[0][0]]:
+                    print(vocabulary[n],end = '')
+
+                print(" ")
+                for n in data['text'][0]:
+                    print(vocabulary[n],end = '')
+                # exit()
+                print(" ")
+                
                 # # beam_results, beam_scores, timesteps, out_lens = decoder.decode(logits)
                 # zero = torch.zeros_like(beam_results)
                 # beam_results = torch.where(beam_results > 27, zero, beam_results)
