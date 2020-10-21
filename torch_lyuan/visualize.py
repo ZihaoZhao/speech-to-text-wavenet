@@ -3,9 +3,9 @@
 # E-mail       : zhzhao18@fudan.edu.cn
 # Company      : Fudan University
 # Date         : 2020-10-19 16:38:18
-# LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-19 21:00:34
-# FilePath     : /speech-to-text-wavenet/torch_lyuan/visualize.py
+# LastEditors  : ,: Zihao Zhao
+# LastEditTime : ,: 2020-10-21 11:23:01
+# FilePath     : ,: /speech-to-text-wavenet/torch_lyuan/visualize.py
 # Description  : 
 #-------------------------------------------# 
 
@@ -36,7 +36,7 @@ def save_visualized_pattern(patterns):
         os.mkdir(patterns_dir)
 
     for i in range(len(patterns)):
-        print(patterns[i].cpu().numpy())
+        # print(patterns[i].cpu().numpy())
         plt.matshow(patterns[i].cpu().numpy(), cmap='hot', vmin = 0, vmax = 1)
         plt.savefig(os.path.join(patterns_dir, str(i)+".png"), dpi=300)
 

@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-11 15:28:41
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-20 17:21:34
+# LastEditTime : 2020-10-20 21:27:05
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/dataset.py
 # Description  : 
 #-------------------------------------------# 
@@ -16,8 +16,32 @@ import random
 import json
 import os
 import numpy as np
+# import tensorflow as tf
 
 
+# def create(filepath, batch_size=1, repeat=False, buffsize=1000):
+#   def _parse(record):
+#     keys_to_features = {
+#       'uid': tf.FixedLenFeature([], tf.string),
+#       'audio/data': tf.VarLenFeature(tf.float32),
+#       'audio/shape': tf.VarLenFeature(tf.int64),
+#       'text': tf.VarLenFeature(tf.int64)
+#     }
+#     features = tf.parse_single_example(
+#       record,
+#       features=keys_to_features
+#     )
+#     audio = features['audio/data'].values
+#     shape = features['audio/shape'].values
+#     audio = tf.reshape(audio, shape)
+#     audio = tf.contrib.layers.dense_to_sparse(audio)
+#     text = features['text']
+#     return audio, text, shape[0], features['uid']
+
+#   dataset = tf.data.TFRecordDataset(filepath).map(_parse).batch(batch_size=batch_size)
+#   loader = torch.utils.data.DataLoader(dataset, batch_size=32)
+
+#   return loader
 
 class VCTK(Dataset):
     def __init__(self, cfg, mode):

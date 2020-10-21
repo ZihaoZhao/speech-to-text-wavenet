@@ -3,9 +3,9 @@
 # E-mail       : zhzhao18@fudan.edu.cn
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
-# LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-20 17:18:18
-# FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
+# LastEditors  : ,: Zihao Zhao
+# LastEditTime : ,: 2020-10-21 11:14:49
+# FilePath     : ,: /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 
 #-------------------------------------------# 
 
@@ -17,6 +17,7 @@ import torch.nn.functional as F
 
 import config_train as cfg
 from dataset import VCTK
+import dataset
 from wavenet import WaveNet
 from sparsity import *
 import utils
@@ -30,6 +31,26 @@ import numpy as np
 
 import argparse
 
+# class data_prefetcher():
+#     def __init__(self, loader):
+#         self.loader = iter(loader)
+#         # self.stream = torch.cuda.Stream()
+#         self.preload()
+
+#     def preload(self):
+#         try:
+#             self.next_data = next(self.loader)
+#         except StopIteration:
+#             self.next_input = None
+#             return
+#         # with torch.cuda.stream(self.stream):
+#         #     self.next_data = self.next_data.cuda(non_blocking=True)
+            
+#     def next(self):
+#         # torch.cuda.current_stream().wait_stream(self.stream)
+#         data = self.next_data
+#         self.preload()
+#         return data
 
 def parse_args():
     '''
@@ -72,6 +93,9 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
 
         
 
+    # prefetcher = data_prefetcher(train_loader)
+    # data = prefetcher.next()
+    
     best_loss = float('inf')
     for epoch in range(cfg.epochs):
         print(f'Training epoch {epoch}')
@@ -81,6 +105,7 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         # sparsity = cal_sparsity(model)
         # print("sparsity:", sparsity)
         for data in train_loader:
+            # data = prefetcher.next()
             wave = data['wave'].cuda()  # [1, 128, 109]
             model = pruning(model, cfg.sparse_mode)
 
@@ -97,7 +122,7 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
             scheduler.zero_grad()
             loss.backward()
             scheduler.step()
-            _loss += loss.data   
+            _loss += loss.data
 
             if epoch == 0 and step_cnt == 10:
                 writer.add_scalar('train/loss', _loss, epoch)
@@ -214,8 +239,9 @@ def main():
 
     # build train data
     vctk_train = VCTK(cfg, 'train')
-    train_loader = DataLoader(vctk_train,batch_size=cfg.batch_size, num_workers=8, shuffle=True, pin_memory=True)
+    train_loader = DataLoader(vctk_train, batch_size=cfg.batch_size, num_workers=8, shuffle=True, pin_memory=True)
 
+    # train_loader = dataset.create("data/v28/train.record", cfg.batch_size, repeat=True)
     vctk_val = VCTK(cfg, 'val')
     val_loader = DataLoader(vctk_val, batch_size=cfg.batch_size, num_workers=8, shuffle=False, pin_memory=True)
 
@@ -235,11 +261,11 @@ def main():
     model.train()
 
     if cfg.resume and os.path.exists(cfg.workdir + '/weights/best.pth'):
-        model.load_state_dict(torch.load(cfg.workdir + '/weights/best.pth'))
+        model.load_state_dict(torch.load(cfg.workdir + '/weights/best.pth'), strict=False)
         print("loading", cfg.workdir + '/weights/best.pth')
 
     if os.path.exists(cfg.load_from):
-        model.load_state_dict(torch.load(cfg.load_from))
+        model.load_state_dict(torch.load(cfg.load_from), strict=False)
         print("loading", cfg.load_from)
 
 
@@ -290,10 +316,13 @@ def main():
     if args.vis_pattern == True:
         pattern_count_dict = find_pattern_model(model, [16,16])
         patterns = list(pattern_count_dict.keys())
+        counts = list(pattern_count_dict.values())
+        print(len(patterns))
+        print(counts)
         vis.save_visualized_pattern(patterns)
         exit()
     # build loss
-    loss_fn = nn.CTCLoss(blank=0, reduction='none')
+    loss_fn = nn.CTCLoss(blank=0, reduction='mean')
 
     #
     scheduler = optim.Adam(model.parameters(), lr=cfg.lr, eps=1e-4)
