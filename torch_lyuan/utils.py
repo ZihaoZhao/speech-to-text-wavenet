@@ -25,9 +25,19 @@ class Data:
   sample_rate = 16000
 
 def read_wave(filepath):
-  wave, sr = librosa.load(filepath, mono=True, sr=Data.sample_rate)
-  mfcc = librosa.feature.mfcc(wave, sr=sr, n_mfcc=Data.num_channel)
-  return mfcc
+
+    # load wave file
+    wave, sr = librosa.load(filepath, mono=True, sr=None)
+
+    # re-sample ( 48K -> 16K )
+    wave = wave[::3]
+
+    # get mfcc feature
+    mfcc = librosa.feature.mfcc(wave, sr=16000)
+
+    #   wave, sr = librosa.load(filepath, mono=True, sr=Data.sample_rate)
+    #   mfcc = librosa.feature.mfcc(wave, sr=sr, n_mfcc=Data.num_channel)
+    return mfcc
 
 def read_txt(filepath):
   txt = open(filepath).read()

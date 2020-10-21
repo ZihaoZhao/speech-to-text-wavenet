@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : ,: Zihao Zhao
-# LastEditTime : ,: 2020-10-21 14:37:53
+# LastEditTime : ,: 2020-10-21 21:17:02
 # FilePath     : ,: /speech-to-text-wavenet/torch_lyuan/wavenet.py
 # Description  : 
 #-------------------------------------------# 
@@ -40,7 +40,8 @@ class Aconv1d(nn.Module):
 
     def forward(self, inputs):
         # padding number = (kernel_size - 1) * dilation / 2
-        inputs = F.pad(inputs, (3*self.dilation, 3*self.dilation))
+        # inputs = F.pad(inputs, (3*self.dilation, 3*self.dilation))
+        inputs = F.pad(inputs, (6*self.dilation, 0))
 
 
         outputs = self.dilation_conv1d(inputs)

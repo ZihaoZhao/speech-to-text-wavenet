@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : ,: Zihao Zhao
-# LastEditTime : ,: 2020-10-21 15:34:56
+# LastEditTime : ,: 2020-10-21 22:06:50
 # FilePath     : ,: /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 
 #-------------------------------------------# 
@@ -60,7 +60,7 @@ def parse_args():
     parser.add_argument('--resume', action='store_true', help='resume from exp_name/best.pth', default=False)
     parser.add_argument('--vis_mask', action='store_true', help='visualize and save masks', default=False)
     parser.add_argument('--vis_pattern', action='store_true', help='visualize and save patterns', default=False)
-    parser.add_argument('--exp', type=str, help='exp dir', default="dense")
+    parser.add_argument('--exp', type=str, help='exp dir', default="dense_1")
     parser.add_argument('--sparse_mode', type=str, help='dense, sparse_pruning, thre_pruning, pattern_pruning', default="dense")
     parser.add_argument('--sparsity', type=float, help='0.2, 0.4, 0.8', default=0.2)
     parser.add_argument('--pattern_para', type=str, help='[pt_num_pt_shape0_pt_shape1_nnz]', default='16_16_16_128')
@@ -122,12 +122,12 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
             scheduler.zero_grad()
             loss.backward()
             scheduler.step()
-            _loss += loss.data
+            _loss += loss.data * data['length_text'][0]
 
             if epoch == 0 and step_cnt == 10:
                 writer.add_scalar('train/loss', _loss, epoch)
 
-            if step_cnt % int(3200/cfg.batch_size) == 1:
+            if step_cnt % int(100/cfg.batch_size) == 1:
                 print("Epoch", epoch,
                         ", train step", step_cnt, "/", len(train_loader),
                         ", loss: ", round(float(_loss.data/step_cnt), 5))
@@ -135,17 +135,17 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
 
 
                 # TODO get the correct evaluate results
-                beam_results, beam_scores, timesteps, out_lens = decoder.decode(logits.permute(1, 0, 2))
-                print(logits.size())
-                # print(out_lens[0][0])
-                print(beam_results[0][0][:out_lens[0][0]])
-                for n in beam_results[0][0][:out_lens[0][0]]:
-                    print(vocabulary[n],end = '')
+                # beam_results, beam_scores, timesteps, out_lens = decoder.decode(logits.permute(1, 0, 2))
+                # print(logits.size())
+                # # print(out_lens[0][0])
+                # print(beam_results[0][0][:out_lens[0][0]])
+                # for n in beam_results[0][0][:out_lens[0][0]]:
+                #     print(vocabulary[n],end = '')
 
-                print(" ")
-                for n in data['text'][0]:
-                    print(vocabulary[int(n)],end = '')
-                print(" ")
+                # print(" ")
+                # for n in data['text'][0]:
+                #     print(vocabulary[int(n)],end = '')
+                # print(" ")
                 
                 # exit()
                 # # beam_results, beam_scores, timesteps, out_lens = decoder.decode(logits)
@@ -207,7 +207,7 @@ def validate(val_loader, model, loss_fn):
         logits = F.log_softmax(logits, dim=2)
         text = data['text'].cuda()
         loss = loss_fn(logits, text, data['length_wave'], data['length_text'])
-        _loss += loss.data
+        _loss += loss.data * data['length_text'][0]
         # print(loss)
         step_cnt += 1
         # if cnt % 10 == 0:
@@ -249,6 +249,22 @@ def main():
     model = WaveNet(num_classes=28, channels_in=20, dilations=[1,2,4,8,16])
     model = nn.DataParallel(model)
     model.cuda()
+
+
+    name_list = list()
+    para_list = list()
+    for name, para in model.named_parameters():
+        name_list.append(name)
+        para_list.append(para)
+
+    a = model.state_dict()
+    for i, name in enumerate(name_list):
+        if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+            raw_w = para_list[i]
+            nn.init.xavier_normal_(raw_w, gain=1.0)
+            a[name] = raw_w
+    model.load_state_dict(a)
+    
 
     weights_dir = os.path.join(cfg.workdir, 'weights')
     if not os.path.exists(weights_dir):
@@ -326,7 +342,7 @@ def main():
         vis.save_visualized_pattern(patterns)
         exit()
     # build loss
-    loss_fn = nn.CTCLoss(blank=0, reduction='mean')
+    loss_fn = nn.CTCLoss()
 
     #
     scheduler = optim.Adam(model.parameters(), lr=cfg.lr, eps=1e-4)
