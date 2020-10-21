@@ -1,3 +1,13 @@
+#----------------description----------------# 
+# Author       : Zihao Zhao
+# E-mail       : zhzhao18@fudan.edu.cn
+# Company      : Fudan University
+# Date         : 2020-10-18 15:59:50
+# LastEditors  : Zihao Zhao
+# LastEditTime : 2020-10-20 20:41:21
+# FilePath     : /speech-to-text-wavenet/train.py
+# Description  : 
+#-------------------------------------------# 
 '''
 Author: your name
 Date: 2020-09-21 11:26:53
@@ -16,7 +26,7 @@ import dataset
 flags = tf.flags
 flags.DEFINE_string('config_path', 'config/english-28.json', 'Directory to config.')
 flags.DEFINE_string('dataset_path', 'data/v28/train.record', 'Filepath to train dataset record.')
-flags.DEFINE_integer('batch_size', 32, 'Batch size of train.')
+flags.DEFINE_integer('batch_size', 16, 'Batch size of train.')
 flags.DEFINE_integer('display', 100, 'Step to display loss.')
 flags.DEFINE_integer('snapshot', 100, 'Step to save model.')
 flags.DEFINE_string('device', "0", 'The device used to train.')

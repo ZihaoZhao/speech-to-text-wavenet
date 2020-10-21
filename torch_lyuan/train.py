@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : ,: Zihao Zhao
-# LastEditTime : ,: 2020-10-21 11:14:49
+# LastEditTime : ,: 2020-10-21 15:34:56
 # FilePath     : ,: /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 
 #-------------------------------------------# 
@@ -255,9 +255,10 @@ def main():
         os.mkdir(weights_dir)
     if not os.path.exists(cfg.vis_dir):
         os.mkdir(cfg.vis_dir)
-    cfg.vis_dir = os.path.join(cfg.vis_dir, cfg.exp_name)
-    if not os.path.exists(cfg.vis_dir):
-        os.mkdir(cfg.vis_dir)
+    if args.vis_pattern == True or args.vis_mask == True:
+        cfg.vis_dir = os.path.join(cfg.vis_dir, cfg.exp_name)
+        if not os.path.exists(cfg.vis_dir):
+            os.mkdir(cfg.vis_dir)
     model.train()
 
     if cfg.resume and os.path.exists(cfg.workdir + '/weights/best.pth'):
@@ -272,6 +273,7 @@ def main():
     if cfg.sparse_mode == 'sparse_pruning':
         cfg.sparsity = args.sparsity
         print(f'sparse_pruning {cfg.sparsity}')
+
     elif cfg.sparse_mode == 'pattern_pruning':
         print(args.pattern_para)
         pattern_num   = int(args.pattern_para.split('_')[0])
@@ -280,11 +282,13 @@ def main():
         print(f'pattern_pruning {pattern_num} [{pattern_shape[0]}, {pattern_shape[1]}] {pattern_nnz}')
         cfg.patterns = generate_pattern(pattern_num, pattern_shape, pattern_nnz)
         cfg.pattern_mask = generate_pattern_mask(model, cfg.patterns)
+
     elif cfg.sparse_mode == 'coo_pruning':
         cfg.coo_shape   = [int(args.coo_para.split('_')[0]), int(args.coo_para.split('_')[1])]
         cfg.coo_nnz   = int(args.coo_para.split('_')[2])
         # cfg.patterns = generate_pattern(pattern_num, pattern_shape, pattern_nnz)
         print(f'coo_pruning [{cfg.coo_shape[0]}, {cfg.coo_shape[1]}] {cfg.coo_nnz}')
+        
     elif cfg.sparse_mode == 'ptcoo_pruning':
         cfg.pattern_num   = int(args.pattern_para.split('_')[0])
         cfg.pattern_shape = [int(args.ptcoo_para.split('_')[1]), int(args.ptcoo_para.split('_')[2])]
@@ -314,7 +318,7 @@ def main():
         exit()
 
     if args.vis_pattern == True:
-        pattern_count_dict = find_pattern_model(model, [16,16])
+        pattern_count_dict = find_pattern_model(model, [8,8])
         patterns = list(pattern_count_dict.keys())
         counts = list(pattern_count_dict.values())
         print(len(patterns))

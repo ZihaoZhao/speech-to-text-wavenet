@@ -1,7 +1,7 @@
 <!--
  * @Author: your name
  * @Date: 2020-10-17 18:33:49
- * @LastEditTime : 2020-10-19 20:57:30
+ * @LastEditTime : 2020-10-21 14:54:07
  * @LastEditors  : Zihao Zhao
  * @Description: In User Settings Edit
  * @FilePath     : /speech-to-text-wavenet/torch_lyuan/readme.md
@@ -84,9 +84,9 @@ ps -ef|grep python|cut -c 9-15 |xargs kill -s9
 
 # exp visualiztion
 ```
-vis_mask: /zhzhao/miniconda3/envs/pytorch16/bin/python /zhzhao/code/wavenet_torch/torch_lyuan/train.py --exp pt_16_1616_192 --resume --vis_mask
+vis_mask: /zhzhao/miniconda3/envs/pytorch16/bin/python /zhzhao/code/wavenet_torch/torch_lyuan/train.py --exp pt_16_1616_64 --resume --vis_mask
 
-vis_pattern: /zhzhao/miniconda3/envs/pytorch16/bin/python /zhzhao/code/wavenet_torch/torch_lyuan/train.py --exp pt_16_1616_192 --resume --vis_pattern
+vis_pattern: /zhzhao/miniconda3/envs/pytorch16/bin/python /zhzhao/code/wavenet_torch/torch_lyuan/train.py --exp pt_16_1616_64 --resume --vis_pattern
 ```
 
 # former

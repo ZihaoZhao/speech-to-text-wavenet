@@ -3,11 +3,12 @@
 # E-mail       : zhzhao18@fudan.edu.cn
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
-# LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-19 21:02:20
-# FilePath     : /speech-to-text-wavenet/torch_lyuan/config_train.py
+# LastEditors  : ,: Zihao Zhao
+# LastEditTime : ,: 2020-10-21 15:00:28
+# FilePath     : ,: /speech-to-text-wavenet/torch_lyuan/config_train.py
 # Description  : 
 #-------------------------------------------# 
+user = 'zzh'
 
 distributed = True # distributed training, must be True
 mode = None # set at dataloader, must be None
