@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : ,: Zihao Zhao
-# LastEditTime : ,: 2020-10-21 22:06:50
+# LastEditTime : ,: 2020-10-22 16:33:25
 # FilePath     : ,: /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 
 #-------------------------------------------# 
@@ -31,26 +31,6 @@ import numpy as np
 
 import argparse
 
-# class data_prefetcher():
-#     def __init__(self, loader):
-#         self.loader = iter(loader)
-#         # self.stream = torch.cuda.Stream()
-#         self.preload()
-
-#     def preload(self):
-#         try:
-#             self.next_data = next(self.loader)
-#         except StopIteration:
-#             self.next_input = None
-#             return
-#         # with torch.cuda.stream(self.stream):
-#         #     self.next_data = self.next_data.cuda(non_blocking=True)
-            
-#     def next(self):
-#         # torch.cuda.current_stream().wait_stream(self.stream)
-#         data = self.next_data
-#         self.preload()
-#         return data
 
 def parse_args():
     '''
@@ -87,8 +67,8 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         cutoff_prob=1.0,
         beam_width=100,
         num_processes=4,
-        blank_id=0,
-        log_probs_input=False
+        blank_id=27,
+        log_probs_input=True
     )
 
         
@@ -116,64 +96,90 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
             logits = model(wave)
             logits = logits.permute(2, 0, 1)
             logits = F.log_softmax(logits, dim=2)
+            # print(logits[:, 0, :].max(1))
+            # for l in logits[:, 0, :].max(1)[1]:
+            #     print(vocabulary[l], end='')
+            # print(data['text'][0])
             # logits = F.softmax(logits, dim=2)
-            text = data['text'].cuda()
-            loss = loss_fn(logits, text, data['length_wave'], data['length_text'])
-            scheduler.zero_grad()
-            loss.backward()
-            scheduler.step()
-            _loss += loss.data * data['length_text'][0]
-
-            if epoch == 0 and step_cnt == 10:
-                writer.add_scalar('train/loss', _loss, epoch)
-
-            if step_cnt % int(100/cfg.batch_size) == 1:
-                print("Epoch", epoch,
-                        ", train step", step_cnt, "/", len(train_loader),
-                        ", loss: ", round(float(_loss.data/step_cnt), 5))
-                torch.save(model.state_dict(), cfg.workdir+'/weights/last.pth')
+            if data['text'].size(0) == cfg.batch_size:
+                for i in range(cfg.batch_size):
+                    if i == 0:
+                        text = data['text'][i][0:data['length_text'][i]].cuda()
+                        # print(data['text'].size())
+                        # print(data['length_text'][i])
+                    else:
+                        text = torch.cat([text, 
+                                    data['text'][i][0: data['length_text'][i]].cuda()])
+            else:
+                continue
 
 
-                # TODO get the correct evaluate results
-                # beam_results, beam_scores, timesteps, out_lens = decoder.decode(logits.permute(1, 0, 2))
-                # print(logits.size())
-                # # print(out_lens[0][0])
-                # print(beam_results[0][0][:out_lens[0][0]])
-                # for n in beam_results[0][0][:out_lens[0][0]]:
-                #     print(vocabulary[n],end = '')
+            try:
+                loss = loss_fn(logits, text, data['length_wave'], data['length_text'])
+                scheduler.zero_grad()
+                loss.backward()
+                scheduler.step()
+                # print(data['length_text'])
+                # print(data['length_text'].size().data)
+                _loss += loss.data * data['length_text'].sum()/cfg.batch_size
 
-                # print(" ")
-                # for n in data['text'][0]:
-                #     print(vocabulary[int(n)],end = '')
-                # print(" ")
-                
-                # exit()
-                # # beam_results, beam_scores, timesteps, out_lens = decoder.decode(logits)
-                # zero = torch.zeros_like(beam_results)
-                # beam_results = torch.where(beam_results > 27, zero, beam_results)
-                # beam_results = torch.where(beam_results < 0, zero, beam_results)
-                # voc = np.tile(vocabulary, (cfg.batch_size, 1))
-                # pred = np.take(voc, beam_results[:, 0, :].data.numpy())
-                # text_np = np.take(voc, text.data.cpu().numpy().astype(int))
 
-                # # print('pred: ', pred.transpose(1, 0))
-                # print('pred: ')
-                # for  i, w in enumerate(pred.transpose(1, 0)[0]):
-                #     if w != '<EMP>':
-                #         print(w, end="")
-                #     elif w == '<EMP>':
-                #         break
+                if epoch == 0 and step_cnt == 10:
+                    writer.add_scalar('train/loss', _loss, epoch)
 
-                # print("")
-                # print("gt: ")
-                # for  i, w in enumerate(pred.transpose(1, 0)[0]):
-                #     if i < 256:
-                #         print(text_np[0][i], end="")
-                # tp, pred, pos = utils.evalutes(utils.cvt_np2string(pred), utils.cvt_np2string(text_np))
-                # print('tp: ', tp, 'pred: ', pred, 'pos: ', pos)
-                
-            step_cnt += 1
-            
+                if step_cnt % int(12000/cfg.batch_size) == 1:
+                    print("Epoch", epoch,
+                            ", train step", step_cnt, "/", len(train_loader),
+                            ", loss: ", round(float(_loss.data/step_cnt), 5))
+                    torch.save(model.state_dict(), cfg.workdir+'/weights/last.pth')
+
+                    # TODO get the correct evaluate results
+                    beam_results, beam_scores, timesteps, out_lens = decoder.decode(logits.permute(1, 0, 2))
+                    print(beam_scores[0].argmin())
+                    print(logits.size())
+                    print(out_lens[0][beam_scores[0].argmin()], len(data['text'][0]))
+                    print(beam_results[0][beam_scores[0].argmin()][:out_lens[0][beam_scores[0].argmin()]])
+                    for n in beam_results[0][beam_scores[0].argmin()][:out_lens[0][beam_scores[0].argmin()]]:
+                        # if vocabulary[int(n)] != '<EMP>':
+                        #     print(vocabulary[n],end = '')
+                        # else:
+                        #     break
+                        print(vocabulary[n],end = '')
+
+                    print(" ")
+                    for n in data['text'][0]:
+                        print(vocabulary[int(n)],end = '')
+                    print(" ")
+                    
+                    # exit()
+                    # # beam_results, beam_scores, timesteps, out_lens = decoder.decode(logits)
+                    # zero = torch.zeros_like(beam_results)
+                    # beam_results = torch.where(beam_results > 27, zero, beam_results)
+                    # beam_results = torch.where(beam_results < 0, zero, beam_results)
+                    voc = np.tile(vocabulary, (cfg.batch_size, 1))
+                    pred = np.take(voc, beam_results[0][0][:out_lens[0][0]].data.numpy())
+                    text_np = np.take(voc, text[0].data.cpu().numpy().astype(int))
+
+                    # # print('pred: ', pred.transpose(1, 0))
+                    # print('pred: ')
+                    # for  i, w in enumerate(pred.transpose(1, 0)[0]):
+                    #     if w != '<EMP>':
+                    #         print(w, end="")
+                    #     elif w == '<EMP>':
+                    #         break
+
+                    # print("")
+                    # print("gt: ")
+                    # for  i, w in enumerate(pred.transpose(1, 0)[0]):
+                    #     if i < 256:
+                    #         print(text_np[0][i], end="")
+                    tp, pred, pos = utils.evalutes(utils.cvt_np2string(pred), utils.cvt_np2string(text_np))
+                    print('tp: ', tp, 'pred: ', pred, 'pos: ', pos)
+                    
+                step_cnt += 1
+            except:
+                continue
+
         _loss /= len(train_loader)
         writer.add_scalar('train/loss', _loss, epoch)
         torch.cuda.empty_cache()
@@ -193,7 +199,7 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         else:
             not_better_cnt += 1
 
-        if not_better_cnt > 5:
+        if not_better_cnt > 10:
             exit()
 
 def validate(val_loader, model, loss_fn):
@@ -205,9 +211,19 @@ def validate(val_loader, model, loss_fn):
         logits = model(wave)
         logits = logits.permute(2, 0, 1)
         logits = F.log_softmax(logits, dim=2)
-        text = data['text'].cuda()
+        if data['text'].size(0) == cfg.batch_size:
+            for i in range(cfg.batch_size):
+                if i == 0:
+                    text = data['text'][i][0:data['length_text'][i]].cuda()
+                    # print(data['text'].size())
+                    # print(data['length_text'][i])
+                else:
+                    text = torch.cat([text, 
+                                data['text'][i][0: data['length_text'][i]].cuda()])
+        else:
+            continue
         loss = loss_fn(logits, text, data['length_wave'], data['length_text'])
-        _loss += loss.data * data['length_text'][0]
+        _loss += loss.data * data['length_text'].sum()/cfg.batch_size
         # print(loss)
         step_cnt += 1
         # if cnt % 10 == 0:
@@ -342,7 +358,8 @@ def main():
         vis.save_visualized_pattern(patterns)
         exit()
     # build loss
-    loss_fn = nn.CTCLoss()
+    loss_fn = nn.CTCLoss(blank=27)
+    # loss_fn = nn.CTCLoss()
 
     #
     scheduler = optim.Adam(model.parameters(), lr=cfg.lr, eps=1e-4)

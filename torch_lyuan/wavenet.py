@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : ,: Zihao Zhao
-# LastEditTime : ,: 2020-10-21 21:17:02
+# LastEditTime : ,: 2020-10-22 13:22:35
 # FilePath     : ,: /speech-to-text-wavenet/torch_lyuan/wavenet.py
 # Description  : 
 #-------------------------------------------# 
@@ -102,7 +102,7 @@ class WaveNet(nn.Module):
 
 
 if __name__ == '__main__':
-    model = WaveNet(num_classes=28, channels_in=20)
+    model = WaveNet(num_classes=27, channels_in=20)
     model.eval()
     input = torch.rand([4,16,128]) # [4,16,128] may be too short. maybe there is some error in padding.
     print(model(input))

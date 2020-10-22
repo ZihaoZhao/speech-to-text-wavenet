@@ -19,9 +19,9 @@ class Data:
                 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q',
                 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '<EMP>']
 
-  decoder_vocabulary = ['_', 'a', 'b', 'c', 'd', 'e', 'f', 'g',
+  decoder_vocabulary = [' ', 'a', 'b', 'c', 'd', 'e', 'f', 'g',
                 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q',
-                'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '_']
+                'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', ' ']
   sample_rate = 16000
 
 def read_wave(filepath):

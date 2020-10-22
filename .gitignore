@@ -10,3 +10,4 @@
 model
 *.json
 release
+*.xlsx

@@ -316,7 +316,7 @@ def find_pattern_certain_nnz_model(model, pattern_num, pattern_shape, pattern_nn
     for i, name in enumerate(name_list):
         raw_w = para_list[i]
         raw_w, patterns_layer = find_pattern_certain_nnz_layer(raw_w, pattern_num, pattern_shape, pattern_nnz)
-        patterns = add_dict(patterns)
+        patterns = add_dict(patterns, patterns_layer)
         a[name] = raw_w
     model.load_state_dict(a)
 
