@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : ,: Zihao Zhao
-# LastEditTime : ,: 2020-10-22 16:33:25
+# LastEditTime : ,: 2020-10-22 19:20:14
 # FilePath     : ,: /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 
 #-------------------------------------------# 
@@ -121,7 +121,7 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
                 scheduler.step()
                 # print(data['length_text'])
                 # print(data['length_text'].size().data)
-                _loss += loss.data * data['length_text'].sum()/cfg.batch_size
+                _loss += loss.data
 
 
                 if epoch == 0 and step_cnt == 10:
@@ -133,48 +133,48 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
                             ", loss: ", round(float(_loss.data/step_cnt), 5))
                     torch.save(model.state_dict(), cfg.workdir+'/weights/last.pth')
 
-                    # TODO get the correct evaluate results
-                    beam_results, beam_scores, timesteps, out_lens = decoder.decode(logits.permute(1, 0, 2))
-                    print(beam_scores[0].argmin())
-                    print(logits.size())
-                    print(out_lens[0][beam_scores[0].argmin()], len(data['text'][0]))
-                    print(beam_results[0][beam_scores[0].argmin()][:out_lens[0][beam_scores[0].argmin()]])
-                    for n in beam_results[0][beam_scores[0].argmin()][:out_lens[0][beam_scores[0].argmin()]]:
-                        # if vocabulary[int(n)] != '<EMP>':
-                        #     print(vocabulary[n],end = '')
-                        # else:
-                        #     break
-                        print(vocabulary[n],end = '')
+                    # # TODO get the correct evaluate results
+                    # beam_results, beam_scores, timesteps, out_lens = decoder.decode(logits.permute(1, 0, 2))
+                    # print(beam_scores[0].argmin())
+                    # print(logits.size())
+                    # print(out_lens[0][beam_scores[0].argmin()], len(data['text'][0]))
+                    # print(beam_results[0][beam_scores[0].argmin()][:out_lens[0][beam_scores[0].argmin()]])
+                    # for n in beam_results[0][beam_scores[0].argmin()][:out_lens[0][beam_scores[0].argmin()]]:
+                    #     # if vocabulary[int(n)] != '<EMP>':
+                    #     #     print(vocabulary[n],end = '')
+                    #     # else:
+                    #     #     break
+                    #     print(vocabulary[n],end = '')
 
-                    print(" ")
-                    for n in data['text'][0]:
-                        print(vocabulary[int(n)],end = '')
-                    print(" ")
+                    # print(" ")
+                    # for n in data['text'][0]:
+                    #     print(vocabulary[int(n)],end = '')
+                    # print(" ")
                     
-                    # exit()
-                    # # beam_results, beam_scores, timesteps, out_lens = decoder.decode(logits)
-                    # zero = torch.zeros_like(beam_results)
-                    # beam_results = torch.where(beam_results > 27, zero, beam_results)
-                    # beam_results = torch.where(beam_results < 0, zero, beam_results)
-                    voc = np.tile(vocabulary, (cfg.batch_size, 1))
-                    pred = np.take(voc, beam_results[0][0][:out_lens[0][0]].data.numpy())
-                    text_np = np.take(voc, text[0].data.cpu().numpy().astype(int))
+                    # # exit()
+                    # # # beam_results, beam_scores, timesteps, out_lens = decoder.decode(logits)
+                    # # zero = torch.zeros_like(beam_results)
+                    # # beam_results = torch.where(beam_results > 27, zero, beam_results)
+                    # # beam_results = torch.where(beam_results < 0, zero, beam_results)
+                    # voc = np.tile(vocabulary, (cfg.batch_size, 1))
+                    # pred = np.take(voc, beam_results[0][0][:out_lens[0][0]].data.numpy())
+                    # text_np = np.take(voc, text[0].data.cpu().numpy().astype(int))
 
-                    # # print('pred: ', pred.transpose(1, 0))
-                    # print('pred: ')
-                    # for  i, w in enumerate(pred.transpose(1, 0)[0]):
-                    #     if w != '<EMP>':
-                    #         print(w, end="")
-                    #     elif w == '<EMP>':
-                    #         break
+                    # # # print('pred: ', pred.transpose(1, 0))
+                    # # print('pred: ')
+                    # # for  i, w in enumerate(pred.transpose(1, 0)[0]):
+                    # #     if w != '<EMP>':
+                    # #         print(w, end="")
+                    # #     elif w == '<EMP>':
+                    # #         break
 
-                    # print("")
-                    # print("gt: ")
-                    # for  i, w in enumerate(pred.transpose(1, 0)[0]):
-                    #     if i < 256:
-                    #         print(text_np[0][i], end="")
-                    tp, pred, pos = utils.evalutes(utils.cvt_np2string(pred), utils.cvt_np2string(text_np))
-                    print('tp: ', tp, 'pred: ', pred, 'pos: ', pos)
+                    # # print("")
+                    # # print("gt: ")
+                    # # for  i, w in enumerate(pred.transpose(1, 0)[0]):
+                    # #     if i < 256:
+                    # #         print(text_np[0][i], end="")
+                    # tp, pred, pos = utils.evalutes(utils.cvt_np2string(pred), utils.cvt_np2string(text_np))
+                    # print('tp: ', tp, 'pred: ', pred, 'pos: ', pos)
                     
                 step_cnt += 1
             except:
@@ -199,7 +199,7 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         else:
             not_better_cnt += 1
 
-        if not_better_cnt > 10:
+        if not_better_cnt > 3:
             exit()
 
 def validate(val_loader, model, loss_fn):
@@ -223,7 +223,7 @@ def validate(val_loader, model, loss_fn):
         else:
             continue
         loss = loss_fn(logits, text, data['length_wave'], data['length_text'])
-        _loss += loss.data * data['length_text'].sum()/cfg.batch_size
+        _loss += loss.data
         # print(loss)
         step_cnt += 1
         # if cnt % 10 == 0:
