@@ -77,7 +77,6 @@ def pruning(model, sparse_mode='dense'):
             # apply the patterns
             # mask = torch.tensor(cfg.pattern_mask[name])
             mask = cfg.pattern_mask[name].clone().detach()
-            print(mask)
             p_w = raw_w * mask
             a[name] = p_w
         model.load_state_dict(a)
