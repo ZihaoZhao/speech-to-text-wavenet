@@ -2,6 +2,7 @@ import os
 import numpy as np
 
 import torch
+import sys
 import config_train as cfg
 
 def pruning(model, sparse_mode='dense'):
@@ -253,7 +254,7 @@ def generate_pattern_mask(model, patterns):
     # exit()
     return patterns_mask
 
-def generate_pattern_mask_layerwise(model, pattern_num, pattern_shape, pattern_nnz):
+def generate_pattern_mask_layerwise(model, pattern_num, pattern_shape, pattern_nnz): 
     name_list = list()
     para_list = list()
     patterns_mask = dict()
@@ -295,7 +296,7 @@ def generate_pattern_mask_layerwise(model, pattern_num, pattern_shape, pattern_n
     # exit()
     return patterns_mask
 
-def find_pattern_certain_nnz_model(model, pattern_num, pattern_shape, pattern_nnz):
+def find_pattern_certain_nnz_model(model, pattern_num, pattern_shape, pattern_nnz, if_pattern_prun=False):
     
     # pattern_num = 16
     # pattern_shape = [16, 16]
@@ -307,41 +308,70 @@ def find_pattern_certain_nnz_model(model, pattern_num, pattern_shape, pattern_nn
     para_list = list()
 
     for name, para in model.named_parameters():
-        name_list.append(name)
-        para_list.append(para)
+        if not para.dim() == 1:
+            name_list.append(name)
+            para_list.append(para)
+            print(name, para.size())
 
     a = model.state_dict()
     zero_cnt = 0
     all_cnt = 0
     for i, name in enumerate(name_list):
         raw_w = para_list[i]
-        raw_w, patterns_layer = find_pattern_certain_nnz_layer(raw_w, pattern_num, pattern_shape, pattern_nnz)
-        patterns = add_dict(patterns)
-        a[name] = raw_w
+        raw_w, patterns_layer = find_pattern_certain_nnz_layer(raw_w, pattern_num, pattern_shape, pattern_nnz, if_pattern_prun)
+        patterns = add_dict(patterns, patterns_layer)
+        if if_pattern_prun:
+            a[name] = raw_w.squeeze(2)
     model.load_state_dict(a)
 
     return model, patterns
 
-def find_pattern_certain_nnz_layer(raw_w, pattern_num, pattern_shape, pattern_nnz):
+def find_pattern_certain_nnz_layer(raw_w, pattern_num, pattern_shape, pattern_nnz, if_pattern_prun=False):
     patterns = dict()
-    for k in raw_w.size(0):
-        for ic_p in raw_w.size(1)/ pattern_shape[0]:
-            for oc_p in raw_w.size(2) / pattern_shape[1]:
+    if raw_w.dim() == 2:
+        raw_w = raw_w.unsqueeze(2)
+    if not raw_w.size(0) % pattern_shape[0] == 0 or not raw_w.size(1) % pattern_shape[1] == 0:
+        f"Error shape{raw_w.shape()}"
+    mask = torch.ones_like(raw_w)
+    for k in range(raw_w.size(2)):
+        for ic_p in range(raw_w.size(0)// pattern_shape[0]):
+            for oc_p in range(raw_w.size(1) // pattern_shape[1]):
                 part_w = raw_w[ic_p * pattern_shape[0]:(ic_p+1) * pattern_shape[0],
                             oc_p * pattern_shape[1]:(oc_p+1) * pattern_shape[1], k]
                 value, _ = torch.topk(part_w.abs().flatten(), pattern_nnz)
 
                 # pruning
                 thre = abs(value[-1])
+                one = torch.ones_like(part_w)
                 zero = torch.zeros_like(part_w)
-                part_w_p = torch.where(abs(part_w) < thre, zero, part_w)
-                raw_w[ic_p * pattern_shape[0]:(ic_p+1) * pattern_shape[0],
-                            oc_p * pattern_shape[1]:(oc_p+1) * pattern_shape[1], k] = part_w_p
+                mask_p = torch.where(abs(part_w) < thre, zero, one)
+
+                mask[ic_p * pattern_shape[0]:(ic_p+1) * pattern_shape[0],
+                            oc_p * pattern_shape[1]:(oc_p+1) * pattern_shape[1], k] = mask_p
 
                 # save the pattern
-                patterns = find_pattern_layer(raw_w, pattern_shape)
-
+    patterns = find_pattern_layer(mask, pattern_shape)
+    if if_pattern_prun:
+        sorted_patterns = sorted(patterns.keys(),key=lambda item:patterns[item],reverse=True)
+        selected_pattern_list = sorted_patterns[:pattern_num]
+        raw_w = pattern_prun_certain_nnz_layer(raw_w, selected_pattern_list, pattern_shape)
     return raw_w, patterns
+    
+
+def pattern_prun_certain_nnz_layer(raw_w, selected_pattern_list, pattern_shape):
+    if raw_w.dim() == 2:
+        raw_w = raw_w.unsqueeze(2)
+    selected_pattern_list = [torch.from_numpy(np.fromstring(selected_pattern_list[i],dtype=np.float32)).cuda().reshape(pattern_shape) for i in range(len(selected_pattern_list))]
+    for k in range(raw_w.size(2)):
+        for ic_p in range(raw_w.size(0)// pattern_shape[0]):
+            for oc_p in range(raw_w.size(1) // pattern_shape[1]):
+                part_w = raw_w[ic_p * pattern_shape[0]:(ic_p+1) * pattern_shape[0],
+                            oc_p * pattern_shape[1]:(oc_p+1) * pattern_shape[1], k].abs()
+                pattern_index = max(range(len(selected_pattern_list)),key=lambda i:torch.sum(selected_pattern_list[i]*(part_w)))
+                raw_w[ic_p * pattern_shape[0]:(ic_p+1) * pattern_shape[0],
+                            oc_p * pattern_shape[1]:(oc_p+1) * pattern_shape[1], k] = selected_pattern_list[pattern_index]
+    return raw_w
+
 
 def find_pattern_model(model, pattern_shape):
     
@@ -365,6 +395,8 @@ def find_pattern_model(model, pattern_shape):
 def find_pattern_layer(raw_w, pattern_shape):
     
     patterns = dict()
+    if raw_w.dim() == 2:
+        raw_w = raw_w.unsqueeze(2)
     if raw_w.size(0) % pattern_shape[0] == 0 and raw_w.size(1) % pattern_shape[1] == 0:
         for k in range(raw_w.size(2)):
             for ic_p in range(int(raw_w.size(0)/ pattern_shape[0])):
