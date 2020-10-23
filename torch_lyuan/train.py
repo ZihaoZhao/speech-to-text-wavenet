@@ -3,9 +3,9 @@
 # E-mail       : zhzhao18@fudan.edu.cn
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
-# LastEditors  : ,: Zihao Zhao
-# LastEditTime : ,: 2020-10-23 15:09:01
-# FilePath     : ,: /speech-to-text-wavenet/torch_lyuan/train.py
+# LastEditors  : Zihao Zhao
+# LastEditTime : 2020-10-23 15:41:47
+# FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 
 #-------------------------------------------# 
 
@@ -49,6 +49,7 @@ def parse_args():
     parser.add_argument('--batch_size', type=int, help='1, 16, 32', default=32)
     parser.add_argument('--lr', type=float, help='0.001 for tensorflow', default=0.001)
     parser.add_argument('--load_from', type=str, help='.pth', default="/z")
+    parser.add_argument('--skip_exist', action='store_true', help='if exist', default=False)
 
     args = parser.parse_args()
     return args
@@ -250,6 +251,10 @@ def main():
     cfg.batch_size  = args.batch_size
     cfg.lr          = args.lr
     cfg.load_from   = args.load_from
+
+    if args.skip_exist == True:
+        if os.path.exists(cfg.workdir):
+            exit()
 
     print('initial training...')
     print(f'work_dir:{cfg.workdir}, \n\

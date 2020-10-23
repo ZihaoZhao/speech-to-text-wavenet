@@ -1,3 +1,13 @@
+#----------------description----------------# 
+# Author       : Zihao Zhao
+# E-mail       : zhzhao18@fudan.edu.cn
+# Company      : Fudan University
+# Date         : 2020-10-18 15:31:19
+# LastEditors  : Zihao Zhao
+# LastEditTime : 2020-10-23 16:12:20
+# FilePath     : /speech-to-text-wavenet/torch_lyuan/sparsity.py
+# Description  : 
+#-------------------------------------------# 
 import os
 import numpy as np
 
@@ -5,6 +15,14 @@ import torch
 import sys
 import config_train as cfg
 
+
+
+#----------------description----------------# 
+# description: prune the input model
+# param {*} model
+# param {*} sparse_mode
+# return {*} pruned_model
+#-------------------------------------------# 
 def pruning(model, sparse_mode='dense'):
     if sparse_mode == 'dense':
         return model
@@ -211,6 +229,13 @@ def generate_pattern(pattern_num, pattern_shape, pattern_nnz):
         # print(patterns[i, :, :])
     return patterns
 
+
+#----------------description----------------# 
+# description: use the given patterns to generate the masks of the input model
+# param {*} model
+# param {*} patterns
+# return {*} patterns_mask
+#-------------------------------------------# 
 def generate_pattern_mask(model, patterns):
     name_list = list()
     para_list = list()
@@ -253,6 +278,16 @@ def generate_pattern_mask(model, patterns):
     # exit()
     return patterns_mask
 
+
+#----------------description----------------# 
+# description: generate patterns and return the mask of input model.
+#               the pattern set in different layers is different.
+# param {*} model
+# param {*} pattern_num
+# param {*} pattern_shape
+# param {*} pattern_nnz
+# return {*} patterns_mask
+#-------------------------------------------# 
 def generate_pattern_mask_layerwise(model, pattern_num, pattern_shape, pattern_nnz): 
     name_list = list()
     para_list = list()
@@ -295,6 +330,17 @@ def generate_pattern_mask_layerwise(model, pattern_num, pattern_shape, pattern_n
     # exit()
     return patterns_mask
 
+
+#----------------description----------------# 
+# description: 1)prune the model and reserve top-nnz weight. 
+#               2)save the patterns of top-nnz.
+# param {*} model
+# param {*} pattern_num
+# param {*} pattern_shape
+# param {*} pattern_nnz
+# param {*} if_pattern_prun
+# return {*} model, patterns
+#-------------------------------------------# 
 def find_pattern_certain_nnz_model(model, pattern_num, pattern_shape, pattern_nnz, if_pattern_prun=False):
     
     # pattern_num = 16
@@ -325,6 +371,17 @@ def find_pattern_certain_nnz_model(model, pattern_num, pattern_shape, pattern_nn
 
     return model, patterns
 
+
+#----------------description----------------# 
+# description: 1)prune one layer and reserve top-nnz weight. 
+#               2)save the patterns of top-nnz.
+# param {*} raw_w
+# param {*} pattern_num
+# param {*} pattern_shape
+# param {*} pattern_nnz
+# param {*} if_pattern_prun
+# return {*} pruned_w, patterns
+#-------------------------------------------# 
 def find_pattern_certain_nnz_layer(raw_w, pattern_num, pattern_shape, pattern_nnz, if_pattern_prun=False):
     patterns = dict()
     if raw_w.dim() == 2:
@@ -357,6 +414,13 @@ def find_pattern_certain_nnz_layer(raw_w, pattern_num, pattern_shape, pattern_nn
     return raw_w, patterns
     
 
+#----------------description----------------# 
+# description: prune one layer using given patterns
+# param {*} raw_w
+# param {*} selected_pattern_list
+# param {*} pattern_shape
+# return {*} pruned_w
+#-------------------------------------------# 
 def pattern_prun_certain_nnz_layer(raw_w, selected_pattern_list, pattern_shape):
     if raw_w.dim() == 2:
         raw_w = raw_w.unsqueeze(2)
@@ -372,6 +436,12 @@ def pattern_prun_certain_nnz_layer(raw_w, selected_pattern_list, pattern_shape):
     return raw_w
 
 
+#----------------description----------------# 
+# description: count the patterns in the model using sliding windows (no overlap).
+# param {*} model
+# param {*} pattern_shape      e.g. [16, 16]
+# return {dict} patterns
+#-------------------------------------------# 
 def find_pattern_model(model, pattern_shape):
     
     patterns = dict()
@@ -391,6 +461,13 @@ def find_pattern_model(model, pattern_shape):
 
     return patterns
 
+
+#----------------description----------------# 
+# description: count the patterns in one layer using sliding windows (no overlap).
+# param {tensor} raw_w          dim() = 2 or 3   e.g. (128,128,7) or (512, 512)
+# param {list} pattern_shape    e.g. [16, 16]
+# return {dict} patterns
+#-------------------------------------------# 
 def find_pattern_layer(raw_w, pattern_shape):
     
     patterns = dict()
@@ -413,6 +490,13 @@ def find_pattern_layer(raw_w, pattern_shape):
                             patterns[pattern] += 1
     return patterns
 
+
+#----------------description----------------# 
+# description: addition of two dicts.
+# param {dict} x
+# param {dict} y
+# return {dict} x+y
+#-------------------------------------------# 
 def add_dict(x, y):
     for k,v in x.items():
         if k in y.keys():
@@ -421,6 +505,12 @@ def add_dict(x, y):
             y[k] = v
     return y
 
+
+#----------------description----------------# 
+# description: calculate the sparsity of the input model.
+# param {*} model
+# return {float} sparsity
+#-------------------------------------------# 
 def cal_sparsity(model):        
     name_list = list()
     para_list = list()
@@ -432,8 +522,10 @@ def cal_sparsity(model):
     all_cnt = 0
     for i, name in enumerate(name_list):
         w = para_list[i]
-        if name.split(".")[-2] != "bn":
+        if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
             zero_cnt += w.flatten().size()[0] - torch.nonzero(w).size()[0]
             all_cnt += w.flatten().size()[0]
 
     return zero_cnt/all_cnt
+
+
