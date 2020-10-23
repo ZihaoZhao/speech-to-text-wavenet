@@ -3,9 +3,9 @@
 # E-mail       : ,: zhzhao18@fudan.edu.cn
 # Company      : ,: Fudan University
 # Date         : ,: 2020-10-23 14:12:06
-# LastEditors  : ,: Zihao Zhao
-# LastEditTime : ,: 2020-10-23 15:04:55
-# FilePath     : ,: /speech-to-text-wavenet/torch_lyuan/write_excel.py
+# LastEditors  : Zihao Zhao
+# LastEditTime : 2020-10-23 16:23:41
+# FilePath     : /speech-to-text-wavenet/torch_lyuan/write_excel.py
 # Description  : ,: 
 #-------------------------------------------# 
 import os
@@ -56,6 +56,7 @@ def write_excel(excel_name, exp_name, train_loss_list, val_loss_list):
             ws.write(val_loss_row, i+1, v)
 
     wb.save(excel_name)
+    print("results saved in", excel_name)
 
 def blank_raw(excel_name):
     wb = xlrd.open_workbook(excel_name)

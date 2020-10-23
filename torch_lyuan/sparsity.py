@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-18 15:31:19
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-23 16:12:20
+# LastEditTime : 2020-10-23 20:21:28
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/sparsity.py
 # Description  : 
 #-------------------------------------------# 
@@ -529,3 +529,96 @@ def cal_sparsity(model):
     return zero_cnt/all_cnt
 
 
+#----------------description----------------# 
+# description: find pattern by similarity
+#                step 1: generate pattern candidates
+#                step 2: calculate the output score mask (remove patterns)
+#                step 3: return top-k patterns
+# param {*} raw_w
+# param {*} pattern_num
+# param {*} pattern_shape
+# param {*} zero_threshold
+# param {*} score_threshold
+# return {*}
+#-------------------------------------------# 
+def find_pattern_by_similarity(raw_w, pattern_num, pattern_shape, zero_threshold, score_threshold):
+    if raw_w.dim() == 2:
+        raw_w = raw_w.unsqueeze(2)
+
+    mask = torch.zeros_like(raw_w)
+
+    # get pattern candidates
+    pattern_candidates = list()
+    idx_to_ijk = dict()
+    idx = 0
+    for k in range(raw_w.size(2)):
+        for i in range(raw_w.size(0) - pattern_shape[0] +1):
+            for j in range(raw_w.size(1) - pattern_shape[1] +1):
+                idx_to_ijk[idx] = [i, j, k]
+                part_w = raw_w[i: (i+1) * pattern_shape[0],
+                                j: (j+1) * pattern_shape[1], k]
+
+                one = torch.ones_like(part_w)
+                zero = torch.zeros_like(part_w)
+                pattern_candidate = torch.where(abs(part_w) <= zero_threshold, zero, one)
+
+                mask[i: (i+1) * pattern_shape[0],
+                        j: (j+1) * pattern_shape[1], k] = pattern_candidate
+
+                pattern_candidates.append(pattern_candidate.cpu().numpy())
+                idx += 1
+
+    # output score maps
+    score_maps = list()
+    pattern_match_num_dict = dict()
+    pattern_candidates = sort_pattern_candidates(pattern_candidates)
+    remove_bitmap = np.zeros((raw_w.size(0) - pattern_shape[0] +1, raw_w.size(1) - pattern_shape[1] +1, raw_w.size(2)))
+    for p_idx, p in enumerate(pattern_candidates):
+        p_i = idx_to_ijk[p_idx][0]
+        p_j = idx_to_ijk[p_idx][1]
+        p_k = idx_to_ijk[p_idx][2]
+
+        if remove_bitmap[p_i, p_j, p_k] == 0:
+            score_map = np.zeros((raw_w.size(0) - pattern_shape[0] +1, raw_w.size(1) - pattern_shape[1] +1, raw_w.size(2)))
+
+            for k in range(raw_w.size(2)):
+                for i in range(raw_w.size(0) - pattern_shape[0] +1):
+                    for j in range(raw_w.size(1) - pattern_shape[1] +1):
+
+                        # TODO find if need to remove part of masks
+                        if remove_bitmap[i, j, k] == 1:
+                            score_map = 0
+                        else:
+                            score_map[i, j, k] = np.dot(p, 
+                                                    mask[i: (i+1) * pattern_shape[0],
+                                                        j: (j+1) * pattern_shape[1], k])  
+
+                        # score_map[i, j, k] = np.dot(p, 
+                        #                         mask[i: (i+1) * pattern_shape[0],
+                        #                             j: (j+1) * pattern_shape[1], k])   
+                        
+            score_maps.append(score_map)
+            score_max = score_map.max()
+            assert(score_max == p.sum())
+
+            # remove the candidate score match the score threshold
+            remove_bitmap = np.where(score_map >= score_max-score_threshold, 1, remove_bitmap)
+
+            match_num = remove_bitmap.sum()
+            pattern_match_num_dict[p.cpu().numpy().tostring()] = match_num
+
+    # collect top-pattern_num patterns
+    pattern_match_num_dict_sorted = sorted(pattern_match_num_dict.items(), key = lambda k: k[1])
+    patterns = list(pattern_match_num_dict_sorted.keys()[:pattern_num])
+
+    return patterns
+    
+
+def sort_pattern_candidates(pattern_candidates):
+    pattern_candidates_sorted = pattern_candidates.copy()
+    for i in range(len(pattern_candidates)-1):
+        for j in range(len(pattern_candidates)-1-i):
+            if pattern_candidates[j].sum() > pattern_candidates[j+1].sum():
+                pattern_candidates[j], pattern_candidates[j+1] = pattern_candidates[j+1], pattern_candidates[j]
+
+    return pattern_candidates_sorted
