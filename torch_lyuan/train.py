@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : ,: Zihao Zhao
-# LastEditTime : ,: 2020-10-22 19:20:14
+# LastEditTime : ,: 2020-10-23 15:09:01
 # FilePath     : ,: /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 
 #-------------------------------------------# 
@@ -30,7 +30,7 @@ import os
 import numpy as np
 
 import argparse
-
+from write_excel import write_excel
 
 def parse_args():
     '''
@@ -72,6 +72,8 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
     )
 
         
+    train_loss_list = list()
+    val_loss_list = list()
 
     # prefetcher = data_prefetcher(train_loader)
     # data = prefetcher.next()
@@ -92,6 +94,7 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
             if epoch == 0 and step_cnt == 0:
                 loss_val = validate(val_loader, model, loss_fn)
                 writer.add_scalar('val/loss', loss_val, epoch)
+                val_loss_list.append(loss_val)
                 
             logits = model(wave)
             logits = logits.permute(2, 0, 1)
@@ -126,6 +129,7 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
 
                 if epoch == 0 and step_cnt == 10:
                     writer.add_scalar('train/loss', _loss, epoch)
+                    train_loss_list.append(_loss)
 
                 if step_cnt % int(12000/cfg.batch_size) == 1:
                     print("Epoch", epoch,
@@ -182,6 +186,7 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
 
         _loss /= len(train_loader)
         writer.add_scalar('train/loss', _loss, epoch)
+        train_loss_list.append(_loss)
         torch.cuda.empty_cache()
 
         model = pruning(model, cfg.sparse_mode)
@@ -189,6 +194,7 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         print(sparsity)
         loss_val = validate(val_loader, model, loss_fn)
         writer.add_scalar('val/loss', loss_val, epoch)
+        val_loss_list.append(loss_val)
 
 
         if loss_val < best_loss:
@@ -199,7 +205,8 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         else:
             not_better_cnt += 1
 
-        if not_better_cnt > 3:
+        if not_better_cnt > 5:
+            write_excel("exp_record.xls", cfg.exp_name, train_loss_list, val_loss_list)
             exit()
 
 def validate(val_loader, model, loss_fn):
