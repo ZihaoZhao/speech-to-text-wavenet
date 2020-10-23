@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : ,: Zihao Zhao
-# LastEditTime : ,: 2020-10-21 15:34:56
+# LastEditTime : ,: 2020-10-22 19:20:14
 # FilePath     : ,: /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 
 #-------------------------------------------# 
@@ -31,26 +31,6 @@ import numpy as np
 
 import argparse
 
-# class data_prefetcher():
-#     def __init__(self, loader):
-#         self.loader = iter(loader)
-#         # self.stream = torch.cuda.Stream()
-#         self.preload()
-
-#     def preload(self):
-#         try:
-#             self.next_data = next(self.loader)
-#         except StopIteration:
-#             self.next_input = None
-#             return
-#         # with torch.cuda.stream(self.stream):
-#         #     self.next_data = self.next_data.cuda(non_blocking=True)
-            
-#     def next(self):
-#         # torch.cuda.current_stream().wait_stream(self.stream)
-#         data = self.next_data
-#         self.preload()
-#         return data
 
 def parse_args():
     '''
@@ -60,7 +40,7 @@ def parse_args():
     parser.add_argument('--resume', action='store_true', help='resume from exp_name/best.pth', default=False)
     parser.add_argument('--vis_mask', action='store_true', help='visualize and save masks', default=False)
     parser.add_argument('--vis_pattern', action='store_true', help='visualize and save patterns', default=False)
-    parser.add_argument('--exp', type=str, help='exp dir', default="dense")
+    parser.add_argument('--exp', type=str, help='exp dir', default="dense_1")
     parser.add_argument('--sparse_mode', type=str, help='dense, sparse_pruning, thre_pruning, pattern_pruning', default="dense")
     parser.add_argument('--sparsity', type=float, help='0.2, 0.4, 0.8', default=0.2)
     parser.add_argument('--pattern_para', type=str, help='[pt_num_pt_shape0_pt_shape1_nnz]', default='16_16_16_128')
@@ -87,8 +67,8 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         cutoff_prob=1.0,
         beam_width=100,
         num_processes=4,
-        blank_id=0,
-        log_probs_input=False
+        blank_id=27,
+        log_probs_input=True
     )
 
         
@@ -116,64 +96,90 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
             logits = model(wave)
             logits = logits.permute(2, 0, 1)
             logits = F.log_softmax(logits, dim=2)
+            # print(logits[:, 0, :].max(1))
+            # for l in logits[:, 0, :].max(1)[1]:
+            #     print(vocabulary[l], end='')
+            # print(data['text'][0])
             # logits = F.softmax(logits, dim=2)
-            text = data['text'].cuda()
-            loss = loss_fn(logits, text, data['length_wave'], data['length_text'])
-            scheduler.zero_grad()
-            loss.backward()
-            scheduler.step()
-            _loss += loss.data
-
-            if epoch == 0 and step_cnt == 10:
-                writer.add_scalar('train/loss', _loss, epoch)
-
-            if step_cnt % int(3200/cfg.batch_size) == 1:
-                print("Epoch", epoch,
-                        ", train step", step_cnt, "/", len(train_loader),
-                        ", loss: ", round(float(_loss.data/step_cnt), 5))
-                torch.save(model.state_dict(), cfg.workdir+'/weights/last.pth')
+            if data['text'].size(0) == cfg.batch_size:
+                for i in range(cfg.batch_size):
+                    if i == 0:
+                        text = data['text'][i][0:data['length_text'][i]].cuda()
+                        # print(data['text'].size())
+                        # print(data['length_text'][i])
+                    else:
+                        text = torch.cat([text, 
+                                    data['text'][i][0: data['length_text'][i]].cuda()])
+            else:
+                continue
 
 
-                # TODO get the correct evaluate results
-                beam_results, beam_scores, timesteps, out_lens = decoder.decode(logits.permute(1, 0, 2))
-                print(logits.size())
-                # print(out_lens[0][0])
-                print(beam_results[0][0][:out_lens[0][0]])
-                for n in beam_results[0][0][:out_lens[0][0]]:
-                    print(vocabulary[n],end = '')
+            try:
+                loss = loss_fn(logits, text, data['length_wave'], data['length_text'])
+                scheduler.zero_grad()
+                loss.backward()
+                scheduler.step()
+                # print(data['length_text'])
+                # print(data['length_text'].size().data)
+                _loss += loss.data
 
-                print(" ")
-                for n in data['text'][0]:
-                    print(vocabulary[int(n)],end = '')
-                print(" ")
-                
-                # exit()
-                # # beam_results, beam_scores, timesteps, out_lens = decoder.decode(logits)
-                # zero = torch.zeros_like(beam_results)
-                # beam_results = torch.where(beam_results > 27, zero, beam_results)
-                # beam_results = torch.where(beam_results < 0, zero, beam_results)
-                # voc = np.tile(vocabulary, (cfg.batch_size, 1))
-                # pred = np.take(voc, beam_results[:, 0, :].data.numpy())
-                # text_np = np.take(voc, text.data.cpu().numpy().astype(int))
 
-                # # print('pred: ', pred.transpose(1, 0))
-                # print('pred: ')
-                # for  i, w in enumerate(pred.transpose(1, 0)[0]):
-                #     if w != '<EMP>':
-                #         print(w, end="")
-                #     elif w == '<EMP>':
-                #         break
+                if epoch == 0 and step_cnt == 10:
+                    writer.add_scalar('train/loss', _loss, epoch)
 
-                # print("")
-                # print("gt: ")
-                # for  i, w in enumerate(pred.transpose(1, 0)[0]):
-                #     if i < 256:
-                #         print(text_np[0][i], end="")
-                # tp, pred, pos = utils.evalutes(utils.cvt_np2string(pred), utils.cvt_np2string(text_np))
-                # print('tp: ', tp, 'pred: ', pred, 'pos: ', pos)
-                
-            step_cnt += 1
-            
+                if step_cnt % int(12000/cfg.batch_size) == 1:
+                    print("Epoch", epoch,
+                            ", train step", step_cnt, "/", len(train_loader),
+                            ", loss: ", round(float(_loss.data/step_cnt), 5))
+                    torch.save(model.state_dict(), cfg.workdir+'/weights/last.pth')
+
+                    # # TODO get the correct evaluate results
+                    # beam_results, beam_scores, timesteps, out_lens = decoder.decode(logits.permute(1, 0, 2))
+                    # print(beam_scores[0].argmin())
+                    # print(logits.size())
+                    # print(out_lens[0][beam_scores[0].argmin()], len(data['text'][0]))
+                    # print(beam_results[0][beam_scores[0].argmin()][:out_lens[0][beam_scores[0].argmin()]])
+                    # for n in beam_results[0][beam_scores[0].argmin()][:out_lens[0][beam_scores[0].argmin()]]:
+                    #     # if vocabulary[int(n)] != '<EMP>':
+                    #     #     print(vocabulary[n],end = '')
+                    #     # else:
+                    #     #     break
+                    #     print(vocabulary[n],end = '')
+
+                    # print(" ")
+                    # for n in data['text'][0]:
+                    #     print(vocabulary[int(n)],end = '')
+                    # print(" ")
+                    
+                    # # exit()
+                    # # # beam_results, beam_scores, timesteps, out_lens = decoder.decode(logits)
+                    # # zero = torch.zeros_like(beam_results)
+                    # # beam_results = torch.where(beam_results > 27, zero, beam_results)
+                    # # beam_results = torch.where(beam_results < 0, zero, beam_results)
+                    # voc = np.tile(vocabulary, (cfg.batch_size, 1))
+                    # pred = np.take(voc, beam_results[0][0][:out_lens[0][0]].data.numpy())
+                    # text_np = np.take(voc, text[0].data.cpu().numpy().astype(int))
+
+                    # # # print('pred: ', pred.transpose(1, 0))
+                    # # print('pred: ')
+                    # # for  i, w in enumerate(pred.transpose(1, 0)[0]):
+                    # #     if w != '<EMP>':
+                    # #         print(w, end="")
+                    # #     elif w == '<EMP>':
+                    # #         break
+
+                    # # print("")
+                    # # print("gt: ")
+                    # # for  i, w in enumerate(pred.transpose(1, 0)[0]):
+                    # #     if i < 256:
+                    # #         print(text_np[0][i], end="")
+                    # tp, pred, pos = utils.evalutes(utils.cvt_np2string(pred), utils.cvt_np2string(text_np))
+                    # print('tp: ', tp, 'pred: ', pred, 'pos: ', pos)
+                    
+                step_cnt += 1
+            except:
+                continue
+
         _loss /= len(train_loader)
         writer.add_scalar('train/loss', _loss, epoch)
         torch.cuda.empty_cache()
@@ -193,7 +199,7 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         else:
             not_better_cnt += 1
 
-        if not_better_cnt > 5:
+        if not_better_cnt > 3:
             exit()
 
 def validate(val_loader, model, loss_fn):
@@ -205,7 +211,17 @@ def validate(val_loader, model, loss_fn):
         logits = model(wave)
         logits = logits.permute(2, 0, 1)
         logits = F.log_softmax(logits, dim=2)
-        text = data['text'].cuda()
+        if data['text'].size(0) == cfg.batch_size:
+            for i in range(cfg.batch_size):
+                if i == 0:
+                    text = data['text'][i][0:data['length_text'][i]].cuda()
+                    # print(data['text'].size())
+                    # print(data['length_text'][i])
+                else:
+                    text = torch.cat([text, 
+                                data['text'][i][0: data['length_text'][i]].cuda()])
+        else:
+            continue
         loss = loss_fn(logits, text, data['length_wave'], data['length_text'])
         _loss += loss.data
         # print(loss)
@@ -249,6 +265,22 @@ def main():
     model = WaveNet(num_classes=28, channels_in=20, dilations=[1,2,4,8,16])
     model = nn.DataParallel(model)
     model.cuda()
+
+
+    name_list = list()
+    para_list = list()
+    for name, para in model.named_parameters():
+        name_list.append(name)
+        para_list.append(para)
+
+    a = model.state_dict()
+    for i, name in enumerate(name_list):
+        if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+            raw_w = para_list[i]
+            nn.init.xavier_normal_(raw_w, gain=1.0)
+            a[name] = raw_w
+    model.load_state_dict(a)
+    
 
     weights_dir = os.path.join(cfg.workdir, 'weights')
     if not os.path.exists(weights_dir):
@@ -326,7 +358,8 @@ def main():
         vis.save_visualized_pattern(patterns)
         exit()
     # build loss
-    loss_fn = nn.CTCLoss(blank=0, reduction='mean')
+    loss_fn = nn.CTCLoss(blank=27)
+    # loss_fn = nn.CTCLoss()
 
     #
     scheduler = optim.Adam(model.parameters(), lr=cfg.lr, eps=1e-4)
