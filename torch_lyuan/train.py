@@ -50,6 +50,7 @@ def parse_args():
     parser.add_argument('--lr', type=float, help='0.001 for tensorflow', default=0.001)
     parser.add_argument('--load_from', type=str, help='.pth', default="/z")
     parser.add_argument('--skip_exist', action='store_true', help='if exist', default=False)
+    parser.add_argument('--save_excel', type=str, help='exp.xls', default="default.xls")
 
     args = parser.parse_args()
     return args
@@ -206,8 +207,9 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         else:
             not_better_cnt += 1
 
-        if not_better_cnt > 5:
-            write_excel("/zhzhao/code/wavenet_torch/torch_lyuan/exp_result/exp_record.xls", cfg.exp_name, train_loss_list, val_loss_list)
+        if not_better_cnt > 4:
+            write_excel(os.path.join(cfg.work_root, cfg.save_excel), 
+                            cfg.exp_name, train_loss_list, val_loss_list)
             exit()
 
 def validate(val_loader, model, loss_fn):
@@ -246,11 +248,13 @@ def main():
     args = parse_args()
     cfg.resume      = args.resume
     cfg.exp_name    = args.exp
-    cfg.workdir     = '/zhzhao/code/wavenet_torch/torch_lyuan/exp_result/' + args.exp + '/debug'
+    cfg.work_root   = '/zhzhao/code/wavenet_torch/torch_lyuan/exp_result/'
+    cfg.workdir     = cfg.work_root + args.exp + '/debug'
     cfg.sparse_mode = args.sparse_mode
     cfg.batch_size  = args.batch_size
     cfg.lr          = args.lr
     cfg.load_from   = args.load_from
+    cfg.save_excel   = args.save_excel
 
     if args.skip_exist == True:
         if os.path.exists(cfg.workdir):
