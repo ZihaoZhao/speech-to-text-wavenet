@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-18 15:31:19
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-23 20:21:28
+# LastEditTime : 2020-10-25 11:45:42
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/sparsity.py
 # Description  : 
 #-------------------------------------------# 
@@ -575,12 +575,13 @@ def find_pattern_by_similarity(raw_w, pattern_num, pattern_shape, zero_threshold
     pattern_candidates = sort_pattern_candidates(pattern_candidates)
     remove_bitmap = torch.zeros((raw_w.size(0) - pattern_shape[0] +1, raw_w.size(1) - pattern_shape[1] +1, raw_w.size(2)))
     
-    print(len(pattern_candidates))
+    print("sorted: ", len(pattern_candidates))
     for p_idx, p in enumerate(pattern_candidates):
         p_i = idx_to_ijk[p_idx][0]
         p_j = idx_to_ijk[p_idx][1]
         p_k = idx_to_ijk[p_idx][2]
 
+        # print(p_i, p_j, p_k)
         if remove_bitmap[p_i, p_j, p_k] == 0:
             score_map = torch.zeros((raw_w.size(0) - pattern_shape[0] +1, raw_w.size(1) - pattern_shape[1] +1, raw_w.size(2)))
 
@@ -590,7 +591,7 @@ def find_pattern_by_similarity(raw_w, pattern_num, pattern_shape, zero_threshold
 
                         # TODO find if need to remove part of masks
                         if remove_bitmap[i, j, k] == 1:
-                            score_map = 0
+                            score_map[i , j, k] = 0
                         else:
                             # print(p)
                             # print(j, (j+1) * pattern_shape[1])
@@ -599,7 +600,7 @@ def find_pattern_by_similarity(raw_w, pattern_num, pattern_shape, zero_threshold
                             score_map[i, j, k] = torch.dot(p.flatten(), 
                                                     mask[i: i + pattern_shape[0],
                                                         j: j + pattern_shape[1], k].flatten())  
-
+                            # print(i, j, k, score_map[i, j, k])
                         # score_map[i, j, k] = np.dot(p, 
                         #                         mask[i: (i+1) * pattern_shape[0],
                         #                             j: (j+1) * pattern_shape[1], k])   
@@ -609,10 +610,15 @@ def find_pattern_by_similarity(raw_w, pattern_num, pattern_shape, zero_threshold
             assert(score_max == p.sum())
 
             # remove the candidate score match the score threshold
+            zeros = torch.zeros_like(remove_bitmap)
             ones = torch.ones_like(remove_bitmap)
-            remove_bitmap = torch.where(score_map >= score_max-score_threshold, ones, remove_bitmap)
+            # print(remove_bitmap)
+            # print(score_max, score_threshold)
+            remove_bitmap = torch.where(score_map >= abs(score_max-score_threshold), ones, remove_bitmap)
 
+            # print(remove_bitmap)
             match_num = remove_bitmap.sum()
+            # print(p.cpu().numpy().tostring(), match_num)
             pattern_match_num_dict[p.cpu().numpy().tostring()] = match_num
         else:
             pass
@@ -631,10 +637,12 @@ def find_pattern_by_similarity(raw_w, pattern_num, pattern_shape, zero_threshold
 
 def sort_pattern_candidates(pattern_candidates):
     pattern_candidates_sorted = pattern_candidates.copy()
-    for i in range(len(pattern_candidates)-1):
-        for j in range(len(pattern_candidates)-1-i):
-            if pattern_candidates[j].sum() > pattern_candidates[j+1].sum():
-                pattern_candidates[j], pattern_candidates[j+1] = pattern_candidates[j+1], pattern_candidates[j]
-        print(i)
+    pattern_sort_index = sorted(range(len(pattern_candidates)), key=lambda k: pattern_candidates[k].sum())
+    # print(pattern_sort_index)
+    pattern_candidates_sorted = [pattern_candidates_sorted[i] for i in pattern_sort_index]
+    # for i in range(len(pattern_candidates)-1):
+    #     for j in range(len(pattern_candidates)-1-i):
+    #         if pattern_candidates[j].sum() > pattern_candidates[j+1].sum():
+    #             pattern_candidates[j], pattern_candidates[j+1] = pattern_candidates[j+1], pattern_candidates[j]
 
     return pattern_candidates_sorted

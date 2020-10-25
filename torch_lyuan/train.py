@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-23 17:04:16
+# LastEditTime : 2020-10-25 11:43:43
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 
 #-------------------------------------------# 
@@ -330,7 +330,7 @@ def main():
             if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
                 raw_w = para_list[i]
                 if raw_w.size(0) == 128 and raw_w.size(1) == 128:
-                    patterns = find_pattern_by_similarity(raw_w, 16, [16,16], 0.01, 100)
+                    patterns = find_pattern_by_similarity(raw_w, 16, [16,16], 0.01, 10)
                     print(patterns)
 
 
