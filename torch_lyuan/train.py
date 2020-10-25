@@ -40,7 +40,7 @@ def parse_args():
     parser.add_argument('--resume', action='store_true', help='resume from exp_name/best.pth', default=False)
     parser.add_argument('--vis_mask', action='store_true', help='visualize and save masks', default=False)
     parser.add_argument('--vis_pattern', action='store_true', help='visualize and save patterns', default=False)
-    parser.add_argument('--exp', type=str, help='exp dir', default="dense_1")
+    parser.add_argument('--exp', type=str, help='exp dir', default="default")
     parser.add_argument('--sparse_mode', type=str, help='dense, sparse_pruning, thre_pruning, pattern_pruning', default="dense")
     parser.add_argument('--sparsity', type=float, help='0.2, 0.4, 0.8', default=0.2)
     parser.add_argument('--pattern_para', type=str, help='[pt_num_pt_shape0_pt_shape1_nnz]', default='16_16_16_128')
@@ -51,6 +51,7 @@ def parse_args():
     parser.add_argument('--load_from', type=str, help='.pth', default="/z")
     parser.add_argument('--skip_exist', action='store_true', help='if exist', default=False)
     parser.add_argument('--save_excel', type=str, help='exp.xls', default="default.xls")
+    parser.add_argument('--find_pattern', action='store_true', help='find_pattern', default=False)
 
     args = parser.parse_args()
     return args
@@ -316,6 +317,22 @@ def main():
     if os.path.exists(cfg.load_from):
         model.load_state_dict(torch.load(cfg.load_from), strict=False)
         print("loading", cfg.load_from)
+
+    if args.find_pattern == True:
+        name_list = list()
+        para_list = list()
+        for name, para in model.named_parameters():
+            name_list.append(name)
+            para_list.append(para)
+
+        a = model.state_dict()
+        for i, name in enumerate(name_list):
+            if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+                raw_w = para_list[i]
+                if raw_w.size(0) == 128 and raw_w.size(1) == 128:
+                    patterns = find_pattern_by_similarity(raw_w, 16, [16,16], 0.01, 100)
+                    print(patterns)
+
 
 
     if cfg.sparse_mode == 'sparse_pruning':
