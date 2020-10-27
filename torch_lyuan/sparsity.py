@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-18 15:31:19
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-27 10:43:42
+# LastEditTime : 2020-10-27 11:18:09
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/sparsity.py
 # Description  : 
 #-------------------------------------------# 
@@ -633,12 +633,14 @@ def find_pattern_by_similarity(raw_w, pattern_num, pattern_shape, zero_threshold
     if len(pattern_match_num_dict.items()) < pattern_num:
         pattern_num = len(pattern_match_num_dict)
     patterns = list()
-    pattern_match_num_dict_sorted = sorted(pattern_match_num_dict.items(), key = lambda k: k[pattern_num])
-    for p, score in pattern_match_num_dict_sorted:
+    pattern_match_num_dict_sorted = sorted(pattern_match_num_dict, key = lambda k: k[pattern_num])
+    for p in pattern_match_num_dict_sorted:
+        score = pattern_match_num_dict[p]
         p = np.frombuffer(p, dtype=np.float32).reshape(pattern_shape)
         print(p, score)
         patterns.append(p)
 
+    exit()
     return patterns
     
 
