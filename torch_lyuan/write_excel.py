@@ -4,7 +4,7 @@
 # Company      : ,: Fudan University
 # Date         : ,: 2020-10-23 14:12:06
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-28 14:46:39
+# LastEditTime : 2020-10-28 17:13:43
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/write_excel.py
 # Description  : ,: 
 #-------------------------------------------# 
@@ -58,7 +58,7 @@ def write_excel(excel_name, exp_name, train_loss_list, val_loss_list):
     wb.save(excel_name)
     print("results saved in", excel_name)
 
-def write_pattern_count(excel_name, exp_name, count_list):
+def write_pattern_count(excel_name, exp_name, nnz_list, count_list):
     # train_loss_list = [1.32, 1.543, 1.111, 1.098]
     # val_loss_list = [1.32, 1.543, 1.111, 1.098]
 
@@ -74,16 +74,20 @@ def write_pattern_count(excel_name, exp_name, count_list):
 
     name_row = base_row + 1
     ptid_row = base_row + 2
-    count_row = base_row + 3
+    nnz_row = base_row + 3
+    count_row = base_row + 4
 
     ws.write(name_row, 0, exp_name)
     ws.write(ptid_row, 0, 'epoch')
+    ws.write(nnz_row, 0, 'pattern_nnz')
     ws.write(count_row, 0, 'pattern_count')
 
     ptid_list = range(len(count_list))
     for i, e in enumerate(ptid_list):
-        ws.write(ptid_row, i+1, e)
+        ws.write(ptid_row, i+1, int(e))
 
+    for i, t in enumerate(nnz_list):
+        ws.write(nnz_row, i+1, int(t))
     for i, t in enumerate(count_list):
         ws.write(count_row, i+1, int(t))
 

@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-18 15:31:19
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-28 15:08:00
+# LastEditTime : 2020-10-28 17:13:51
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/sparsity.py
 # Description  : 
 #-------------------------------------------# 
@@ -575,6 +575,7 @@ def find_pattern_by_similarity(raw_w, pattern_num, pattern_shape, zero_threshold
     # output score maps
     score_maps = list()
     pattern_match_num_dict = dict()
+    pattern_match_nnz_dict = dict()
     print(len(pattern_candidates))
     pattern_candidates, pattern_sort_index = sort_pattern_candidates(pattern_candidates)
     remove_bitmap = torch.zeros((raw_w.size(0) - pattern_shape[0] +1, raw_w.size(1) - pattern_shape[1] +1, raw_w.size(2)))
@@ -625,10 +626,11 @@ def find_pattern_by_similarity(raw_w, pattern_num, pattern_shape, zero_threshold
                                     ",score:", int(match_num), 
                                     ",removed:", int(remove_bitmap.sum()))
             pattern_match_num_dict[p.cpu().numpy().tostring()] = match_num
+            pattern_match_nnz_dict[p.cpu().numpy().tostring()] = score_max
         else:
             pass
         
-        if len(pattern_match_num_dict.keys()) >= 1000:
+        if len(pattern_match_num_dict.keys()) >= 200:
             break
 
     print(len(pattern_match_num_dict))
@@ -649,7 +651,7 @@ def find_pattern_by_similarity(raw_w, pattern_num, pattern_shape, zero_threshold
         # print(p, score)
 
     # exit()
-    return patterns, pattern_match_num_dict
+    return patterns, pattern_match_num_dict, pattern_match_nnz_dict
     
 
 def sort_pattern_candidates(pattern_candidates):

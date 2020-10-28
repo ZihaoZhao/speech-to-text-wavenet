@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-28 14:54:21
+# LastEditTime : 2020-10-28 15:19:22
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 
 #-------------------------------------------# 
@@ -344,7 +344,7 @@ def main():
             if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
                 raw_w = para_list[i]
                 if raw_w.size(0) == 128 and raw_w.size(1) == 128:
-                    patterns16, all_patterns = find_pattern_by_similarity(raw_w
+                    patterns16, all_patterns, all_nnzs = find_pattern_by_similarity(raw_w
                                         , cfg.find_pattern_num
                                         , cfg.find_pattern_shape
                                         , cfg.find_zero_threshold
@@ -352,7 +352,7 @@ def main():
 
                     write_pattern_count(os.path.join(cfg.work_root, args.save_pattern_count_excel)
                                         , cfg.exp_name + " " + args.find_pattern_shape +" " + args.find_pattern_para
-                                        , all_patterns.values())
+                                        , all_nnzs.values(), all_patterns.values())
                     exit()
 
 
