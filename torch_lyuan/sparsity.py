@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-18 15:31:19
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-27 11:18:09
+# LastEditTime : 2020-10-28 14:18:23
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/sparsity.py
 # Description  : 
 #-------------------------------------------# 
@@ -581,6 +581,7 @@ def find_pattern_by_similarity(raw_w, pattern_num, pattern_shape, zero_threshold
     
     print("sorted: ", len(pattern_candidates))
     for p_idx, p in enumerate(pattern_candidates):
+        p_num = p_idx
         p_idx = pattern_sort_index[p_idx]
 
         p_i = idx_to_ijk[p_idx][0]
@@ -627,21 +628,28 @@ def find_pattern_by_similarity(raw_w, pattern_num, pattern_shape, zero_threshold
             pattern_match_num_dict[p.cpu().numpy().tostring()] = match_num
         else:
             pass
+        if p_num >= 100:
+            break
 
     print(len(pattern_match_num_dict))
+    # if_save = False
+    # if if_save:
+        
+
+
     # collect top-pattern_num patterns
     if len(pattern_match_num_dict.items()) < pattern_num:
         pattern_num = len(pattern_match_num_dict)
-    patterns = list()
+    patterns = dict()
     pattern_match_num_dict_sorted = sorted(pattern_match_num_dict, key = lambda k: k[pattern_num])
     for p in pattern_match_num_dict_sorted:
         score = pattern_match_num_dict[p]
         p = np.frombuffer(p, dtype=np.float32).reshape(pattern_shape)
         print(p, score)
-        patterns.append(p)
+        patterns[p] = score
 
-    exit()
-    return patterns
+    # exit()
+    return patterns, pattern_match_num_dict
     
 
 def sort_pattern_candidates(pattern_candidates):

@@ -3,9 +3,9 @@
 # E-mail       : zhzhao18@fudan.edu.cn
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
-# LastEditors  : ,: Zihao Zhao
-# LastEditTime : ,: 2020-10-22 13:22:35
-# FilePath     : ,: /speech-to-text-wavenet/torch_lyuan/wavenet.py
+# LastEditors  : Zihao Zhao
+# LastEditTime : 2020-10-27 17:13:06
+# FilePath     : /speech-to-text-wavenet/torch_lyuan/wavenet.py
 # Description  : 
 #-------------------------------------------# 
 
@@ -35,7 +35,7 @@ class Aconv1d(nn.Module):
 
         self.dilation_conv1d = nn.Conv1d(in_channels=channel_in, out_channels=channel_out,
                                        kernel_size=7, dilation=self.dilation, bias=False)
-        self.bn = nn.BatchNorm1d(channel_out)
+        self.bn = nn.BatchNorm1d(channel_out, affine=True, track_running_stats=False)
 
 
     def forward(self, inputs):
@@ -61,7 +61,7 @@ class ResnetBlock(nn.Module):
         self.conv_gate = Aconv1d(dilation, channel_in, channel_out, activate='sigmoid')
 
         self.conv1d = nn.Conv1d(channel_out, out_channels=128, kernel_size=1, bias=False)
-        self.bn = nn.BatchNorm1d(128)
+        self.bn = nn.BatchNorm1d(128, affine=True, track_running_stats=False)
 
     def forward(self, inputs):
         out_filter = self.conv_filter(inputs)
@@ -77,7 +77,7 @@ class WaveNet(nn.Module):
         super(WaveNet, self).__init__()
         self.num_layers = num_layers
         self.conv1d = nn.Conv1d(in_channels=channels_in, out_channels=channels_out, kernel_size=1, bias=False)
-        self.bn = nn.BatchNorm1d(channels_out)
+        self.bn = nn.BatchNorm1d(channels_out, affine=True, track_running_stats=False)
 
         self.resnet_block = nn.ModuleList([ResnetBlock(dilation, channels_out, channels_out) for dilation in dilations])
         self.conv1d_out = nn.Conv1d(channels_out, channels_out, kernel_size=1, bias=False)

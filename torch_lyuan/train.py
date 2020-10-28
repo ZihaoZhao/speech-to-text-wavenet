@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-26 20:53:30
+# LastEditTime : 2020-10-28 14:19:25
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 
 #-------------------------------------------# 
@@ -30,34 +30,40 @@ import os
 import numpy as np
 
 import argparse
-from write_excel import write_excel
+from write_excel import *
 
 def parse_args():
     '''
     Parse input arguments
     '''
     parser = argparse.ArgumentParser(description='WaveNet for speech recognition.')
+    parser.add_argument('--exp', type=str, help='exp dir', default="default")
     parser.add_argument('--resume', action='store_true', help='resume from exp_name/best.pth', default=False)
+
     parser.add_argument('--vis_mask', action='store_true', help='visualize and save masks', default=False)
     parser.add_argument('--vis_pattern', action='store_true', help='visualize and save patterns', default=False)
-    parser.add_argument('--exp', type=str, help='exp dir', default="default")
+
     parser.add_argument('--sparse_mode', type=str, help='dense, sparse_pruning, thre_pruning, pattern_pruning', default="dense")
     parser.add_argument('--sparsity', type=float, help='0.2, 0.4, 0.8', default=0.2)
     parser.add_argument('--pattern_para', type=str, help='[pt_num_pt_shape0_pt_shape1_nnz]', default='16_16_16_128')
     parser.add_argument('--coo_para', type=str, help='[pt_shape0, pt_shape1, nnz]', default='8_8_32')
     parser.add_argument('--ptcoo_para', type=str, help='[pt_num, pt_shape0, pt_shape1, pt_nnz, coo_nnz]', default='16_16_16_128_64')
+
     parser.add_argument('--batch_size', type=int, help='1, 16, 32', default=32)
     parser.add_argument('--lr', type=float, help='0.001 for tensorflow', default=0.001)
     parser.add_argument('--load_from', type=str, help='.pth', default="/z")
     parser.add_argument('--skip_exist', action='store_true', help='if exist', default=False)
     parser.add_argument('--save_excel', type=str, help='exp.xls', default="default.xls")
+
     parser.add_argument('--find_pattern', action='store_true', help='find_pattern', default=False)
+    parser.add_argument('--find_pattern_para', type=str, help='[zerothre_scorethre]', default='0.02_32')
+    parser.add_argument('--find_pattern_shape', type=str, help='[zerothre_scorethre]', default='16_16')
+    parser.add_argument('--save_pattern_count_excel', type=str, help='exp.xls', default="pattern_count.xls")
 
     args = parser.parse_args()
     return args
 
 def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
-    
     decoder_vocabulary = utils.Data.decoder_vocabulary
     vocabulary = utils.Data.vocabulary
     decoder = CTCBeamDecoder(
@@ -73,8 +79,6 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         blank_id=27,
         log_probs_input=True
     )
-
-        
     train_loss_list = list()
     val_loss_list = list()
 
@@ -89,16 +93,17 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         
         # sparsity = cal_sparsity(model)
         # print("sparsity:", sparsity)
+        _tp, _pred, _pos = 0, 0, 0
         for data in train_loader:
             # data = prefetcher.next()
             wave = data['wave'].cuda()  # [1, 128, 109]
             model = pruning(model, cfg.sparse_mode)
-
+            model.train() 
             if epoch == 0 and step_cnt == 0:
                 loss_val = validate(val_loader, model, loss_fn)
                 writer.add_scalar('val/loss', loss_val, epoch)
                 val_loss_list.append(float(loss_val))
-                
+                model.train()    
             logits = model(wave)
             logits = logits.permute(2, 0, 1)
             logits = F.log_softmax(logits, dim=2)
@@ -120,72 +125,44 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
                 continue
 
 
-            try:
-                loss = loss_fn(logits, text, data['length_wave'], data['length_text'])
-                scheduler.zero_grad()
-                loss.backward()
-                scheduler.step()
-                # print(data['length_text'])
-                # print(data['length_text'].size().data)
-                _loss += loss.data
+            # try:
+            loss = loss_fn(logits, text, data['length_wave'], data['length_text'])
+            scheduler.zero_grad()
+            loss.backward()
+            scheduler.step()
+            # print(data['length_text'])
+            # print(data['length_text'].size().data)
+            _loss += loss.data# * float(data['length_text'].float().mean())
 
 
-                if epoch == 0 and step_cnt == 10:
-                    writer.add_scalar('train/loss', _loss, epoch)
-                    train_loss_list.append(float(_loss))
+            if epoch == 0 and step_cnt == 10:
+                writer.add_scalar('train/loss', _loss, epoch)
+                train_loss_list.append(float(_loss))
 
-                if step_cnt % int(12000/cfg.batch_size) == 1:
-                    print("Epoch", epoch,
-                            ", train step", step_cnt, "/", len(train_loader),
-                            ", loss: ", round(float(_loss.data/step_cnt), 5))
-                    torch.save(model.state_dict(), cfg.workdir+'/weights/last.pth')
+            if step_cnt % int(12000/cfg.batch_size) == 1:
+                print("Epoch", epoch,
+                        ", train step", step_cnt, "/", len(train_loader),
+                        ", loss: ", round(float(_loss.data/step_cnt), 5))
+                torch.save(model.state_dict(), cfg.workdir+'/weights/last.pth')
 
-                    # # TODO get the correct evaluate results
-                    # beam_results, beam_scores, timesteps, out_lens = decoder.decode(logits.permute(1, 0, 2))
-                    # print(beam_scores[0].argmin())
-                    # print(logits.size())
-                    # print(out_lens[0][beam_scores[0].argmin()], len(data['text'][0]))
-                    # print(beam_results[0][beam_scores[0].argmin()][:out_lens[0][beam_scores[0].argmin()]])
-                    # for n in beam_results[0][beam_scores[0].argmin()][:out_lens[0][beam_scores[0].argmin()]]:
-                    #     # if vocabulary[int(n)] != '<EMP>':
-                    #     #     print(vocabulary[n],end = '')
-                    #     # else:
-                    #     #     break
-                    #     print(vocabulary[n],end = '')
+                if float(_loss.data/step_cnt) < 0.9:
+                    # TODO get the correct evaluate results
+                    beam_results, beam_scores, timesteps, out_lens = decoder.decode(logits.permute(1, 0, 2))
 
-                    # print(" ")
-                    # for n in data['text'][0]:
-                    #     print(vocabulary[int(n)],end = '')
-                    # print(" ")
-                    
-                    # # exit()
-                    # # # beam_results, beam_scores, timesteps, out_lens = decoder.decode(logits)
-                    # # zero = torch.zeros_like(beam_results)
-                    # # beam_results = torch.where(beam_results > 27, zero, beam_results)
-                    # # beam_results = torch.where(beam_results < 0, zero, beam_results)
-                    # voc = np.tile(vocabulary, (cfg.batch_size, 1))
-                    # pred = np.take(voc, beam_results[0][0][:out_lens[0][0]].data.numpy())
-                    # text_np = np.take(voc, text[0].data.cpu().numpy().astype(int))
+                    voc = np.tile(vocabulary, (cfg.batch_size, 1))
+                    pred = np.take(voc, beam_results[0][0][:out_lens[0][0]].data.numpy())
+                    text_np = np.take(voc, data['text'][0][0:data['length_text'][0]].cpu().numpy().astype(int))
 
-                    # # # print('pred: ', pred.transpose(1, 0))
-                    # # print('pred: ')
-                    # # for  i, w in enumerate(pred.transpose(1, 0)[0]):
-                    # #     if w != '<EMP>':
-                    # #         print(w, end="")
-                    # #     elif w == '<EMP>':
-                    # #         break
-
-                    # # print("")
-                    # # print("gt: ")
-                    # # for  i, w in enumerate(pred.transpose(1, 0)[0]):
-                    # #     if i < 256:
-                    # #         print(text_np[0][i], end="")
-                    # tp, pred, pos = utils.evalutes(utils.cvt_np2string(pred), utils.cvt_np2string(text_np))
-                    # print('tp: ', tp, 'pred: ', pred, 'pos: ', pos)
-                    
-                step_cnt += 1
-            except:
-                continue
+                    tp, pred, pos = utils.evalutes(utils.cvt_np2string(pred), utils.cvt_np2string(text_np))
+                    _tp += tp
+                    _pred += pred
+                    _pos += pos
+                    f1 = 2 * _tp / (_pred + _pos + 1e-10)
+                
+                    print("Val tp:", _tp, ",pred:", _pred, ",pos:", _pos, ",f1:", f1)
+            step_cnt += 1
+            # except:
+            #     continue
 
         _loss /= len(train_loader)
         writer.add_scalar('train/loss', _loss, epoch)
@@ -199,6 +176,7 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         writer.add_scalar('val/loss', loss_val, epoch)
         val_loss_list.append(float(loss_val))
 
+        model.train()
 
         if loss_val < best_loss:
             not_better_cnt = 0
@@ -208,38 +186,68 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         else:
             not_better_cnt += 1
 
-        if not_better_cnt > 4:
+        if not_better_cnt > 25:
             write_excel(os.path.join(cfg.work_root, cfg.save_excel), 
                             cfg.exp_name, train_loss_list, val_loss_list)
             exit()
 
-def validate(val_loader, model, loss_fn):
+def validate(val_loader, model, loss_fn):    
+    decoder_vocabulary = utils.Data.decoder_vocabulary
+    vocabulary = utils.Data.vocabulary
+    decoder = CTCBeamDecoder(
+        decoder_vocabulary,
+        #"_abcdefghijklmopqrstuvwxyz_",
+        model_path=None,
+        alpha=0,
+        beta=0,
+        cutoff_top_n=40,
+        cutoff_prob=1.0,
+        beam_width=100,
+        num_processes=4,
+        blank_id=27,
+        log_probs_input=True
+    )
     model.eval()
     _loss = 0.0
     step_cnt = 0
-    for data in val_loader:
-        wave = data['wave'].cuda()  # [1, 128, 109]
-        logits = model(wave)
-        logits = logits.permute(2, 0, 1)
-        logits = F.log_softmax(logits, dim=2)
-        if data['text'].size(0) == cfg.batch_size:
-            for i in range(cfg.batch_size):
-                if i == 0:
-                    text = data['text'][i][0:data['length_text'][i]].cuda()
-                    # print(data['text'].size())
-                    # print(data['length_text'][i])
-                else:
-                    text = torch.cat([text, 
-                                data['text'][i][0: data['length_text'][i]].cuda()])
-        else:
-            continue
-        loss = loss_fn(logits, text, data['length_wave'], data['length_text'])
-        _loss += loss.data
-        # print(loss)
-        step_cnt += 1
-        # if cnt % 10 == 0:
+    _tp, _pred, _pos = 0, 0, 0
+    with torch.no_grad():
+        for data in val_loader:
+            wave = data['wave'].cuda()  # [1, 128, 109]
+            logits = model(wave)
+            logits = logits.permute(2, 0, 1)
+            logits = F.log_softmax(logits, dim=2)
+            if data['text'].size(0) == cfg.batch_size:
+                for i in range(cfg.batch_size):
+                    if i == 0:
+                        text = data['text'][i][0:data['length_text'][i]].cuda()
+                        # print(data['text'].size())
+                        # print(data['length_text'][i])
+                    else:
+                        text = torch.cat([text, 
+                                    data['text'][i][0: data['length_text'][i]].cuda()])
+            else:
+                continue
+            loss = loss_fn(logits, text, data['length_wave'], data['length_text'])
+            _loss += loss.data
+            # # TODO get the correct evaluate results
+            # beam_results, beam_scores, timesteps, out_lens = decoder.decode(logits.permute(1, 0, 2))
+
+            # voc = np.tile(vocabulary, (cfg.batch_size, 1))
+            # pred = np.take(voc, beam_results[0][0][:out_lens[0][0]].data.numpy())
+            # text_np = np.take(voc, data['text'][0][0:data['length_text'][0]].cpu().numpy().astype(int))
+
+            # tp, pred, pos = utils.evalutes(utils.cvt_np2string(pred), utils.cvt_np2string(text_np))
+            # _tp += tp
+            # _pred += pred
+            # _pos += pos
+            # f1 = 2 * _tp / (_pred + _pos + 1e-10)
+            
+            step_cnt += 1
+            # if cnt % 10 == 0:
     print("Val step", step_cnt, "/", len(val_loader),
             ", loss: ", round(float(_loss.data/step_cnt), 5))
+    # print("Val tp:", _tp, ",pred:", _pred, ",pos:", _pos, ",f1:", f1)
 
     
     return _loss/len(val_loader)
@@ -319,6 +327,12 @@ def main():
         print("loading", cfg.load_from)
 
     if args.find_pattern == True:
+
+        cfg.find_pattern_num   = 16
+        cfg.find_pattern_shape = [int(args.find_pattern_shape.split('_')[0]), int(args.find_pattern_shape.split('_')[1])]
+        cfg.find_zero_threshold = float(args.find_pattern_para.split('_')[0])
+        cfg.find_score_threshold = int(args.find_pattern_para.split('_')[1])
+
         name_list = list()
         para_list = list()
         for name, para in model.named_parameters():
@@ -330,8 +344,16 @@ def main():
             if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
                 raw_w = para_list[i]
                 if raw_w.size(0) == 128 and raw_w.size(1) == 128:
-                    patterns = find_pattern_by_similarity(raw_w, 16, [16,16], 0.02, 20)
-                    print(patterns)
+                    patterns16, all_patterns = find_pattern_by_similarity(raw_w
+                                        , cfg.find_pattern_num
+                                        , cfg.find_pattern_shape
+                                        , cfg.find_zero_threshold
+                                        , cfg.find_score_threshold)
+
+                    write_pattern_count(os.path.join(cfg.work_root, cfg.save_excel)
+                                        , cfg.exp_name + args.find_pattern_shape+ args.find_pattern_para
+                                        , all_patterns.values())
+                    exit()
 
 
 
