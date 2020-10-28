@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-28 14:19:25
+# LastEditTime : 2020-10-28 14:54:21
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 
 #-------------------------------------------# 
@@ -186,7 +186,7 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         else:
             not_better_cnt += 1
 
-        if not_better_cnt > 25:
+        if not_better_cnt > 4:
             write_excel(os.path.join(cfg.work_root, cfg.save_excel), 
                             cfg.exp_name, train_loss_list, val_loss_list)
             exit()
@@ -350,8 +350,8 @@ def main():
                                         , cfg.find_zero_threshold
                                         , cfg.find_score_threshold)
 
-                    write_pattern_count(os.path.join(cfg.work_root, cfg.save_excel)
-                                        , cfg.exp_name + args.find_pattern_shape+ args.find_pattern_para
+                    write_pattern_count(os.path.join(cfg.work_root, args.save_pattern_count_excel)
+                                        , cfg.exp_name + " " + args.find_pattern_shape +" " + args.find_pattern_para
                                         , all_patterns.values())
                     exit()
 

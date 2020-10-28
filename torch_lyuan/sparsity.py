@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-18 15:31:19
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-28 14:18:23
+# LastEditTime : 2020-10-28 15:08:00
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/sparsity.py
 # Description  : 
 #-------------------------------------------# 
@@ -580,9 +580,8 @@ def find_pattern_by_similarity(raw_w, pattern_num, pattern_shape, zero_threshold
     remove_bitmap = torch.zeros((raw_w.size(0) - pattern_shape[0] +1, raw_w.size(1) - pattern_shape[1] +1, raw_w.size(2)))
     
     print("sorted: ", len(pattern_candidates))
-    for p_idx, p in enumerate(pattern_candidates):
-        p_num = p_idx
-        p_idx = pattern_sort_index[p_idx]
+    for p_num, p in enumerate(pattern_candidates):
+        p_idx = pattern_sort_index[p_num]
 
         p_i = idx_to_ijk[p_idx][0]
         p_j = idx_to_ijk[p_idx][1]
@@ -621,14 +620,15 @@ def find_pattern_by_similarity(raw_w, pattern_num, pattern_shape, zero_threshold
 
             # print(remove_bitmap)
             match_num = remove_bitmap_add.sum()
-            print(idx_to_ijk[p_idx], ",current_pattern_nnz:", int(p.sum()), 
+            print(p_num, idx_to_ijk[p_idx], ",current_pattern_nnz:", int(p.sum()), 
                                     ",output_max:", int(score_max), 
                                     ",score:", int(match_num), 
                                     ",removed:", int(remove_bitmap.sum()))
             pattern_match_num_dict[p.cpu().numpy().tostring()] = match_num
         else:
             pass
-        if p_num >= 100:
+        
+        if len(pattern_match_num_dict.keys()) >= 1000:
             break
 
     print(len(pattern_match_num_dict))
@@ -644,9 +644,9 @@ def find_pattern_by_similarity(raw_w, pattern_num, pattern_shape, zero_threshold
     pattern_match_num_dict_sorted = sorted(pattern_match_num_dict, key = lambda k: k[pattern_num])
     for p in pattern_match_num_dict_sorted:
         score = pattern_match_num_dict[p]
-        p = np.frombuffer(p, dtype=np.float32).reshape(pattern_shape)
-        print(p, score)
         patterns[p] = score
+        p = np.frombuffer(p, dtype=np.float32).reshape(pattern_shape)
+        # print(p, score)
 
     # exit()
     return patterns, pattern_match_num_dict

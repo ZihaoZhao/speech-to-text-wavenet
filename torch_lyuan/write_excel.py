@@ -4,7 +4,7 @@
 # Company      : ,: Fudan University
 # Date         : ,: 2020-10-23 14:12:06
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-28 13:59:52
+# LastEditTime : 2020-10-28 14:46:39
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/write_excel.py
 # Description  : ,: 
 #-------------------------------------------# 
@@ -78,14 +78,14 @@ def write_pattern_count(excel_name, exp_name, count_list):
 
     ws.write(name_row, 0, exp_name)
     ws.write(ptid_row, 0, 'epoch')
-    ws.write(count_list, 0, 'train_loss')
+    ws.write(count_row, 0, 'pattern_count')
 
     ptid_list = range(len(count_list))
     for i, e in enumerate(ptid_list):
         ws.write(ptid_row, i+1, e)
 
     for i, t in enumerate(count_list):
-        ws.write(count_row, i+1, t)
+        ws.write(count_row, i+1, int(t))
 
     wb.save(excel_name)
     print("results saved in", excel_name)
