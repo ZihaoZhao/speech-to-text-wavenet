@@ -2,10 +2,10 @@
  # @Author       : Zihao Zhao
  # @E-mail       : zhzhao18@fudan.edu.cn
  # @Company      : Fudan University
- # @Date         : 2020-10-21 11:11:37
+ # @Date         : 2020-10-25 10:30:40
  # @LastEditors  : Zihao Zhao
- # @LastEditTime : 2020-10-21 11:22:33
- # @FilePath     : /speech-to-text-wavenet/torch_lyuan/vis.sh
+ # @LastEditTime : 2020-11-01 15:20:34
+ # @FilePath     : /speech-to-text-wavenet/torch_lyuan/train_script/vis.sh
  # @Description  : 
 ### 
 #!bin/bash

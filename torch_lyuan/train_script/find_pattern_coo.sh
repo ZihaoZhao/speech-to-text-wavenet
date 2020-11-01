@@ -4,7 +4,7 @@
  # @Company      : Fudan University
  # @Date         : 2020-10-13 20:16:46
  # @LastEditors  : Zihao Zhao
- # @LastEditTime : 2020-11-01 14:51:27
+ # @LastEditTime : 2020-11-01 15:07:46
  # @FilePath     : /speech-to-text-wavenet/torch_lyuan/train_script/find_pattern_coo.sh
  # @Description  : 
 ### 
@@ -12,7 +12,27 @@
 
 #/zhzhao/miniconda3/bin/conda init bash | conda activate pytorch16 | sh /zhzhao/code/wavenet_torch/torch_lyuan/train_script/find_pattern.sh
 
-excel_name=coo_pattern_count_test.xls
+# excel_name=coo_pattern_count_test.xls
+
+# exps=(f1 \
+#         f2 \
+#         f3 \
+#         f4)
+
+# for exp in ${exps[*]}
+#     do
+#         echo $exp
+#         /zhzhao/miniconda3/envs/pytorch16/bin/python \
+#         /zhzhao/code/wavenet_torch/torch_lyuan/train.py \
+#         --exp coo_8_8_56 \
+#         --load_from /zhzhao/code/wavenet_torch/torch_lyuan/exp_result/coo_8_8_56/debug/weights/best.pth \
+#         --find_pattern \
+#         --find_pattern_para 0.001_64 \
+#         --save_pattern_count_excel \
+#         $excel_name
+
+# done
+
 
 /zhzhao/miniconda3/envs/pytorch16/bin/python /zhzhao/code/wavenet_torch/torch_lyuan/train.py --exp coo_8_8_56 --load_from /zhzhao/code/wavenet_torch/torch_lyuan/exp_result/coo_8_8_56/debug/weights/best.pth --find_pattern --find_pattern_para 0.001_64 --save_pattern_count_excel $excel_name
 /zhzhao/miniconda3/envs/pytorch16/bin/python /zhzhao/code/wavenet_torch/torch_lyuan/train.py --exp coo_8_8_56 --load_from /zhzhao/code/wavenet_torch/torch_lyuan/exp_result/coo_8_8_56/debug/weights/best.pth --find_pattern --find_pattern_para 0.001_48 --save_pattern_count_excel $excel_name
