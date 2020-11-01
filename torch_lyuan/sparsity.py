@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-18 15:31:19
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-01 15:26:04
+# LastEditTime : 2020-11-01 16:45:04
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/sparsity.py
 # Description  : 
 #-------------------------------------------# 
@@ -14,6 +14,7 @@ import numpy as np
 import torch
 import sys
 import config_train as cfg
+import math
 
 
 
@@ -621,7 +622,6 @@ def find_pattern_by_similarity(raw_w, pattern_num, pattern_shape, sparsity, coo_
             pattern_match_num_dict[p.cpu().numpy().tostring()] = match_num
             # pattern_match_nnz_dict[p.cpu().numpy().tostring()] = score_min
 
-            # TODO count coo num, pattern utilization
 
             
         else:
@@ -775,6 +775,31 @@ def find_pattern_envelope_by_similarity(raw_w, pattern_num, pattern_shape, zero_
     # exit()
     return patterns, pattern_match_num_dict, pattern_match_nnz_dict
     
+#----------------description----------------# 
+# description: 
+# param {*} pattern_match_num_dict
+# param {*} pattern_coo_nnz_dict
+# param {*} pattern_nnz_dict
+# return {*} pattern_num_memory_dict, pattern_num_coo_nnz_dict
+#-------------------------------------------# 
+def pattern_curve_analyse(raw_w_shape, pattern_shape, patterns, pattern_match_num, pattern_coo_nnz, pattern_nnz):
+    
+    submatrix_num = (raw_w_shape[0] // pattern_shape[0]) * (raw_w_shape[1] // pattern_shape[1])
+    pattern_num_memory_dict = dict()
+    pattern_num_coo_nnz_dict = dict()
+    pattern_num_list = [1, 2, 4, 8, 12, 16, 24, 32, 48, 64, 96, 128]
+    for pattern_num in pattern_num_list:
+        pattern_idx_bit_num = math.log(pattern_num, 2) \
+                            * submatrix_num
+        coo_idx_num = (pattern_coo_nnz[:pattern_num].sum() \
+                            + pattern_nnz[pattern_num:].sum())
+        coo_idx_bit_num = (math.log(pattern_shape[0], 2) + math.log(pattern_shape[1], 2)) \
+                            * coo_idx_num
+        memory_cost = pattern_idx_bit_num + coo_idx_bit_num
+        pattern_num_memory_dict[pattern_num] = memory_cost
+        pattern_num_coo_nnz_dict[pattern_num] = coo_idx_num
+    return pattern_num_memory_dict, pattern_num_coo_nnz_dict
+
 def sort_pattern_candidates(pattern_candidates):
     pattern_candidates_sorted = pattern_candidates.copy()
     pattern_sort_index = sorted(range(len(pattern_candidates)), key=lambda k: pattern_candidates[k].sum(), reverse=True)
