@@ -432,7 +432,7 @@ def pattern_prun_certain_nnz_layer(raw_w, selected_pattern_list, pattern_shape):
                             oc_p * pattern_shape[1]:(oc_p+1) * pattern_shape[1], k].abs()
                 pattern_index = max(range(len(selected_pattern_list)),key=lambda i:torch.sum(selected_pattern_list[i]*(part_w)))
                 raw_w[ic_p * pattern_shape[0]:(ic_p+1) * pattern_shape[0],
-                            oc_p * pattern_shape[1]:(oc_p+1) * pattern_shape[1], k] = selected_pattern_list[pattern_index]
+                            oc_p * pattern_shape[1]:(oc_p+1) * pattern_shape[1], k] *= selected_pattern_list[pattern_index]
     return raw_w
 
 
