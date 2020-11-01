@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-18 15:31:19
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-01 14:47:45
+# LastEditTime : 2020-11-01 15:02:50
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/sparsity.py
 # Description  : 
 #-------------------------------------------# 
@@ -538,9 +538,14 @@ def cal_sparsity(model):
 # param {*} coo_threshold
 # return {*}
 #-------------------------------------------# 
-def find_pattern_by_similarity(raw_w, pattern_num, pattern_shape, zero_threshold, coo_threshold):
+def find_pattern_by_similarity(raw_w, pattern_num, pattern_shape, sparsity, coo_threshold):
     if raw_w.dim() == 2:
         raw_w = raw_w.unsqueeze(2)
+
+    w_num = torch.nonzero(raw_w).size(0)
+    zero_num = int(w_num * sparsity)
+    value, _ = torch.topk(raw_w.abs().flatten(), w_num - zero_num)
+    zero_threshold = abs(value[-1])
 
     stride = [16, 16]
     p_num_x = (raw_w.size(0) - pattern_shape[0])//stride[0] + 1
