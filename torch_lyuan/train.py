@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-02 13:55:16
+# LastEditTime : 2020-11-02 19:41:26
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 
 #-------------------------------------------# 
@@ -59,6 +59,9 @@ def parse_args():
     parser.add_argument('--find_pattern_para', type=str, help='[zerothre_scorethre]', default='0.02_32')
     parser.add_argument('--find_pattern_shape', type=str, help='[zerothre_scorethre]', default='16_16')
     parser.add_argument('--save_pattern_count_excel', type=str, help='exp.xls', default="pattern_count.xls")
+
+    parser.add_argument('--test_acc', action='store_true', help='test_acc', default=False)
+    parser.add_argument('--test_acc_excel', type=str, help='exp.xls', default="test_acc.xls")
 
     args = parser.parse_args()
     return args
@@ -248,9 +251,67 @@ def validate(val_loader, model, loss_fn):
             ", loss: ", round(float(_loss.data/step_cnt), 5))
     # print("Val tp:", _tp, ",pred:", _pred, ",pos:", _pos, ",f1:", f1)
 
-    
     return _loss/len(val_loader)
 
+
+def test_acc(val_loader, model, loss_fn):    
+    decoder_vocabulary = utils.Data.decoder_vocabulary
+    vocabulary = utils.Data.vocabulary
+    decoder = CTCBeamDecoder(
+        decoder_vocabulary,
+        #"_abcdefghijklmopqrstuvwxyz_",
+        model_path=None,
+        alpha=0,
+        beta=0,
+        cutoff_top_n=40,
+        cutoff_prob=1.0,
+        beam_width=100,
+        num_processes=4,
+        blank_id=27,
+        log_probs_input=True
+    )
+    model.eval()
+    _loss = 0.0
+    step_cnt = 0
+    tps, preds, poses = 0, 0, 0
+    with torch.no_grad():
+        for data in val_loader:
+            wave = data['wave'].cuda()  # [1, 128, 109]
+            logits = model(wave)
+            logits = logits.permute(2, 0, 1)
+            logits = F.log_softmax(logits, dim=2)
+            if data['text'].size(0) == cfg.batch_size:
+                for i in range(cfg.batch_size):
+                    if i == 0:
+                        text = data['text'][i][0:data['length_text'][i]].cuda()
+                        # print(data['text'].size())
+                        # print(data['length_text'][i])
+                    else:
+                        text = torch.cat([text, 
+                                    data['text'][i][0: data['length_text'][i]].cuda()])
+            else:
+                continue
+            loss = loss_fn(logits, text, data['length_wave'], data['length_text'])
+            _loss += loss.data
+            beam_results, beam_scores, timesteps, out_lens = decoder.decode(logits.permute(1, 0, 2))
+
+            voc = np.tile(vocabulary, (cfg.batch_size, 1))
+            pred = np.take(voc, beam_results[0][0][:out_lens[0][0]].data.numpy())
+            text_np = np.take(voc, data['text'][0][0:data['length_text'][0]].cpu().numpy().astype(int))
+
+            tp, pred, pos = utils.evalutes(utils.cvt_np2string(pred), utils.cvt_np2string(text_np))
+            tps += tp
+            preds += pred
+            poses += pos
+            f1 = 2 * tps / (preds + poses + 1e-10)
+            
+            step_cnt += 1
+            # if cnt % 10 == 0:
+    print("Val step", step_cnt, "/", len(val_loader),
+            ", loss: ", round(float(_loss.data/step_cnt), 5))
+    print("Val tps:", tps, ",preds:", preds, ",poses:", poses, ",f1:", f1)
+
+    return f1, _loss/len(val_loader), tps, preds, poses
 
 def main():
     args = parse_args()
@@ -432,7 +493,11 @@ def main():
     #
     scheduler = optim.Adam(model.parameters(), lr=cfg.lr, eps=1e-4)
     # scheduler = optim.lr_scheduler.MultiStepLR(train_step, milestones=[50, 150, 250], gamma=0.5)
-
+    if args.test_acc == True:
+        f1, val_loss, tps, preds, poses = test_acc(val_loader, model, loss_fn)
+        write_test_acc(os.path.join(cfg.work_root, args.test_acc_excel), 
+                        cfg.exp_name, f1, val_loss, tps, preds, poses)
+        exit()
     # train
     train(train_loader, scheduler, model, loss_fn, val_loader, writer)
     # val
