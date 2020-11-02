@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-18 15:31:19
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-01 16:45:04
+# LastEditTime : 2020-11-02 14:05:31
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/sparsity.py
 # Description  : 
 #-------------------------------------------# 
@@ -578,7 +578,8 @@ def find_pattern_by_similarity(raw_w, pattern_num, pattern_shape, sparsity, coo_
     # output score maps
     score_maps = list()
     pattern_match_num_dict = dict()
-    pattern_match_nnz_dict = dict()
+    pattern_coo_nnz_dict = dict()
+    pattern_nnz_dict = dict()
     print(len(pattern_candidates))
     pattern_candidates, pattern_sort_index = sort_pattern_candidates(pattern_candidates)
 
@@ -588,6 +589,7 @@ def find_pattern_by_similarity(raw_w, pattern_num, pattern_shape, sparsity, coo_
     for p_cnt, p in enumerate(pattern_candidates):
         p = 1 - p
         p_sum = p.sum()
+        nnz_num = 0
         p_idx = pattern_sort_index[p_cnt]
 
         p_i = idx_to_ijk[p_idx][0]
@@ -620,36 +622,98 @@ def find_pattern_by_similarity(raw_w, pattern_num, pattern_shape, sparsity, coo_
                                     ",score:", int(match_num), 
                                     ",removed:", int(remove_bitmap.sum()))
             pattern_match_num_dict[p.cpu().numpy().tostring()] = match_num
-            # pattern_match_nnz_dict[p.cpu().numpy().tostring()] = score_min
+            pattern_coo_nnz_dict[p.cpu().numpy().tostring()] = (score_map * remove_bitmap_add).sum()
 
-
-            
         else:
             pass
         
+        for k in range(raw_w.size(2)):
+            for i in range(0, p_num_x):
+                for j in range(0, p_num_y):
+                    if remove_bitmap_add[i, j, k] == 1:
+                        nnz_num += mask[i*stride[0]: i*stride[0] + pattern_shape[0]
+                                                        , j*stride[1]: j*stride[1] + pattern_shape[1], k].sum()
+
+        pattern_nnz_dict[p.cpu().numpy().tostring()] = nnz_num
+
+        # TODO save more
         if len(pattern_match_num_dict.keys()) >= 200:
             break
 
     print(len(pattern_match_num_dict))
-    # if_save = False
-    # if if_save:
-        
 
 
     # collect top-pattern_num patterns
     if len(pattern_match_num_dict.items()) < pattern_num:
         pattern_num = len(pattern_match_num_dict)
-    patterns = dict()
-    pattern_match_num_dict_sorted = sorted(pattern_match_num_dict, key = lambda k: k[pattern_num])
-    for p in pattern_match_num_dict_sorted:
-        score = pattern_match_num_dict[p]
-        patterns[p] = score
+    patterns = list()
+    pattern_match_num = list()
+    pattern_coo_nnz = list()
+    pattern_nnz = list()
+    patterns = sorted(pattern_match_num_dict, key = lambda k: k[pattern_num])
+    for p in patterns:
+        pattern_match_num.append(pattern_match_num_dict[p])
+        pattern_coo_nnz.append(pattern_coo_nnz_dict[p])
+        pattern_nnz.append(pattern_nnz_dict[p])
+        # patterns[p] = score
         p = np.frombuffer(p, dtype=np.float32).reshape(pattern_shape)
         # print(p, score)
 
     # exit()
-    return patterns, pattern_match_num_dict, pattern_match_nnz_dict
+    return patterns, np.array(pattern_match_num), np.array(pattern_coo_nnz), np.array(pattern_nnz)
     
+
+#----------------description----------------# 
+# description: 
+# param {*} pattern_match_num_dict
+# param {*} pattern_coo_nnz_dict
+# param {*} pattern_nnz_dict
+# return {*} pattern_num_memory_dict, pattern_num_coo_nnz_dict
+#-------------------------------------------# 
+def pattern_curve_analyse(raw_w_shape, pattern_shape, patterns, pattern_match_num, pattern_coo_nnz, pattern_nnz):
+    
+    submatrix_num = (raw_w_shape[0] // pattern_shape[0]) * (raw_w_shape[1] // pattern_shape[1])
+    pattern_num_memory_dict = dict()
+    pattern_num_coo_nnz_dict = dict()
+    pattern_num_list = [1, 2, 4, 8, 12, 16, 24, 32, 48, 64, 96, 128]
+    for pattern_num in pattern_num_list:
+        # pattern_bit_num = 
+        if pattern_num == 1:
+            pattern_bit = 1
+        else:
+            pattern_bit = math.log(pattern_num, 2)
+        pattern_idx_bit_num = pattern_bit \
+                            * submatrix_num
+        coo_idx_num = (pattern_coo_nnz[:pattern_num].sum() \
+                            + pattern_nnz[pattern_num:].sum())
+        coo_idx_bit_num = (math.log(pattern_shape[0], 2) + math.log(pattern_shape[1], 2)) \
+                            * coo_idx_num
+        memory_cost = pattern_idx_bit_num + coo_idx_bit_num
+        pattern_num_memory_dict[pattern_num] = memory_cost
+        pattern_num_coo_nnz_dict[pattern_num] = coo_idx_num
+        
+    # print(pattern_num_memory_dict)
+    return pattern_num_memory_dict, pattern_num_coo_nnz_dict
+
+
+#----------------description----------------# 
+# description: 
+# param {*} pattern_candidates
+# return {*}
+#-------------------------------------------# 
+def sort_pattern_candidates(pattern_candidates):
+    pattern_candidates_sorted = pattern_candidates.copy()
+    pattern_sort_index = sorted(range(len(pattern_candidates)), key=lambda k: pattern_candidates[k].sum(), reverse=True)
+    # print(pattern_sort_index)
+    pattern_candidates_sorted = [pattern_candidates_sorted[i] for i in pattern_sort_index]
+    # for i in range(len(pattern_candidates)-1):
+    #     for j in range(len(pattern_candidates)-1-i):
+    #         if pattern_candidates[j].sum() > pattern_candidates[j+1].sum():
+    #             pattern_candidates[j], pattern_candidates[j+1] = pattern_candidates[j+1], pattern_candidates[j]
+
+    return pattern_candidates_sorted, pattern_sort_index
+
+
 
 #----------------description----------------# 
 # description: find pattern by similarity
@@ -748,7 +812,6 @@ def find_pattern_envelope_by_similarity(raw_w, pattern_num, pattern_shape, zero_
                                     ",score:", int(match_num), 
                                     ",removed:", int(remove_bitmap.sum()))
             pattern_match_num_dict[p.cpu().numpy().tostring()] = match_num
-            pattern_match_nnz_dict[p.cpu().numpy().tostring()] = score_max
         else:
             pass
         
@@ -775,39 +838,3 @@ def find_pattern_envelope_by_similarity(raw_w, pattern_num, pattern_shape, zero_
     # exit()
     return patterns, pattern_match_num_dict, pattern_match_nnz_dict
     
-#----------------description----------------# 
-# description: 
-# param {*} pattern_match_num_dict
-# param {*} pattern_coo_nnz_dict
-# param {*} pattern_nnz_dict
-# return {*} pattern_num_memory_dict, pattern_num_coo_nnz_dict
-#-------------------------------------------# 
-def pattern_curve_analyse(raw_w_shape, pattern_shape, patterns, pattern_match_num, pattern_coo_nnz, pattern_nnz):
-    
-    submatrix_num = (raw_w_shape[0] // pattern_shape[0]) * (raw_w_shape[1] // pattern_shape[1])
-    pattern_num_memory_dict = dict()
-    pattern_num_coo_nnz_dict = dict()
-    pattern_num_list = [1, 2, 4, 8, 12, 16, 24, 32, 48, 64, 96, 128]
-    for pattern_num in pattern_num_list:
-        pattern_idx_bit_num = math.log(pattern_num, 2) \
-                            * submatrix_num
-        coo_idx_num = (pattern_coo_nnz[:pattern_num].sum() \
-                            + pattern_nnz[pattern_num:].sum())
-        coo_idx_bit_num = (math.log(pattern_shape[0], 2) + math.log(pattern_shape[1], 2)) \
-                            * coo_idx_num
-        memory_cost = pattern_idx_bit_num + coo_idx_bit_num
-        pattern_num_memory_dict[pattern_num] = memory_cost
-        pattern_num_coo_nnz_dict[pattern_num] = coo_idx_num
-    return pattern_num_memory_dict, pattern_num_coo_nnz_dict
-
-def sort_pattern_candidates(pattern_candidates):
-    pattern_candidates_sorted = pattern_candidates.copy()
-    pattern_sort_index = sorted(range(len(pattern_candidates)), key=lambda k: pattern_candidates[k].sum(), reverse=True)
-    # print(pattern_sort_index)
-    pattern_candidates_sorted = [pattern_candidates_sorted[i] for i in pattern_sort_index]
-    # for i in range(len(pattern_candidates)-1):
-    #     for j in range(len(pattern_candidates)-1-i):
-    #         if pattern_candidates[j].sum() > pattern_candidates[j+1].sum():
-    #             pattern_candidates[j], pattern_candidates[j+1] = pattern_candidates[j+1], pattern_candidates[j]
-
-    return pattern_candidates_sorted, pattern_sort_index

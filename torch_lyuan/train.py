@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-01 13:36:10
+# LastEditTime : 2020-11-02 13:55:16
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 
 #-------------------------------------------# 
@@ -230,7 +230,6 @@ def validate(val_loader, model, loss_fn):
                 continue
             loss = loss_fn(logits, text, data['length_wave'], data['length_text'])
             _loss += loss.data
-            # # TODO get the correct evaluate results
             # beam_results, beam_scores, timesteps, out_lens = decoder.decode(logits.permute(1, 0, 2))
 
             # voc = np.tile(vocabulary, (cfg.batch_size, 1))
@@ -344,15 +343,29 @@ def main():
             if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
                 raw_w = para_list[i]
                 if raw_w.size(0) == 128 and raw_w.size(1) == 128:
-                    patterns16, all_patterns, all_nnzs = find_pattern_by_similarity(raw_w
+                    patterns, pattern_match_num, pattern_coo_nnz, pattern_nnz \
+                                    = find_pattern_by_similarity(raw_w
                                         , cfg.find_pattern_num
                                         , cfg.find_pattern_shape
                                         , cfg.find_zero_threshold
                                         , cfg.find_score_threshold)
 
-                    write_pattern_count(os.path.join(cfg.work_root, args.save_pattern_count_excel)
+                    pattern_num_memory_dict, pattern_num_coo_nnz_dict \
+                                    = pattern_curve_analyse(raw_w.shape
+                                        , cfg.find_pattern_shape
+                                        , patterns
+                                        , pattern_match_num
+                                        , pattern_coo_nnz
+                                        , pattern_nnz)
+                                        
+                    write_pattern_curve_analyse(os.path.join(cfg.work_root, args.save_pattern_count_excel)
                                         , cfg.exp_name + " " + args.find_pattern_shape +" " + args.find_pattern_para
-                                        , all_nnzs.values(), all_patterns.values())
+                                        , patterns, pattern_match_num, pattern_coo_nnz, pattern_nnz
+                                        , pattern_num_memory_dict, pattern_num_coo_nnz_dict)
+
+                    # write_pattern_count(os.path.join(cfg.work_root, args.save_pattern_count_excel)
+                    #                     , cfg.exp_name + " " + args.find_pattern_shape +" " + args.find_pattern_para
+                    #                     , all_nnzs.values(), all_patterns.values())
                     exit()
 
 
