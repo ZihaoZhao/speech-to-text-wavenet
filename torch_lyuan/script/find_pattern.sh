@@ -4,14 +4,14 @@
  # @Company      : Fudan University
  # @Date         : 2020-10-13 20:16:46
  # @LastEditors  : Zihao Zhao
- # @LastEditTime : 2020-11-03 15:11:43
+ # @LastEditTime : 2020-11-03 21:13:58
  # @FilePath     : /speech-to-text-wavenet/torch_lyuan/script/find_pattern.sh
  # @Description  : 
 ### 
 #!/usr/bin/env bash
 
 #/zhzhao/miniconda3/bin/conda init bash | conda activate pytorch16 | bash /zhzhao/code/wavenet_torch/torch_lyuan/script/find_pattern.sh
-exp_name="dense_pattern_much"
+exp_name="dense_pattern_much_8"
 excel_name=$exp_name".xls"
 model_name="/zhzhao/code/wavenet_torch/torch_lyuan/exp_result/best.pth"
 
@@ -20,13 +20,25 @@ sparsity_list=("0.05" \
                 "0.15" \
                 "0.20" \
                 "0.25" \
-                "0.375" \
-                "0.5" \
-                "0.625" \
+                "0.30" \
+                "0.40" \
+                "0.50" \
+                "0.60" \
+                "0.65" \
+                "0.70" \
                 "0.75" \
-                "0.875")
+                "0.80" \
+                "0.85" \
+                "0.90" \
+                "0.95")
 
-coonum_list=("12" \
+coonum_list=("1" \
+            "2" \
+            "4" \
+            "6" \
+            "8" \
+            "10" \
+            "12" \
             "16" \
             "20" \
             "24" \
@@ -47,9 +59,9 @@ coonum_list=("12" \
             "88" \
             "100")
 
-pattern_shape_list=("4_4" \
+pattern_shape_list=("16_16" \
                 "8_8" \
-                "16_16" \
+                "4_4" \
                 "4_8" \
                 "4_16" \
                 "8_16")

@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-18 15:31:19
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-03 15:09:37
+# LastEditTime : 2020-11-03 21:13:36
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/sparsity.py
 # Description  : 
 #-------------------------------------------# 
@@ -553,7 +553,8 @@ def find_pattern_by_similarity(raw_w, pattern_num, pattern_shape, sparsity, coo_
     value, _ = torch.topk(raw_w.abs().flatten(), w_num - zero_num)
     zero_threshold = abs(value[-1])
 
-    stride = [16, 16]
+    # stride = [16, 16]
+    stride = [pattern_shape[0], pattern_shape[1]]
     p_num_x = (raw_w.size(0) - pattern_shape[0])//stride[0] + 1
     p_num_y = (raw_w.size(1) - pattern_shape[1])//stride[1] + 1
     # mask = torch.zeros_like(raw_w).cuda()
@@ -599,7 +600,7 @@ def find_pattern_by_similarity(raw_w, pattern_num, pattern_shape, sparsity, coo_
 
         # print(p_i, p_j, p_k)
         if remove_bitmap[p_i, p_j, p_k] == 0:
-            score_map = torch.zeros((p_num_x, p_num_x, raw_w.size(2)))
+            score_map = torch.zeros((p_num_x, p_num_y, raw_w.size(2)))
             for k in range(raw_w.size(2)):
                 for i in range(0, p_num_x):
                     for j in range(0, p_num_y):
@@ -654,9 +655,14 @@ def find_pattern_by_similarity(raw_w, pattern_num, pattern_shape, sparsity, coo_
     pattern_coo_nnz   = list()
     pattern_nnz       = list()
     pattern_inner_nnz = list()
-    patterns = sorted(pattern_match_num_dict, key = lambda k: k[pattern_num])
+    patterns = sorted(zip(pattern_match_num_dict.values(), pattern_match_num_dict.keys()), reverse=True)
+    # patterns = sorted(pattern_match_num_dict, key = lambda k: k[pattern_num])
     for p in patterns:
+        # print(p)
+        # print(p[0])
+        p = p[1]
         pattern_match_num.append(pattern_match_num_dict[p])
+        # print(pattern_match_num_dict[p], " ", end="")
         pattern_coo_nnz.append(pattern_coo_nnz_dict[p])
         pattern_nnz.append(pattern_nnz_dict[p])
         pattern_inner_nnz.append(pattern_inner_nnz_dict[p])
@@ -682,6 +688,8 @@ def pattern_curve_analyse(raw_w_shape, pattern_shape, patterns, pattern_match_nu
     pattern_num_coo_nnz_dict = dict()
     pattern_num_list = [1, 2, 4, 8, 12, 16, 24, 32, 48, 64, 96, 128, 256, 512]
     for pattern_num in pattern_num_list:
+        if pattern_num > len(patterns) * 2:
+            break
         pattern_bit_num = pattern_inner_nnz[:pattern_num].sum() * (math.log(pattern_shape[0], 2) + math.log(pattern_shape[1], 2))
         
         if pattern_num == 1:
