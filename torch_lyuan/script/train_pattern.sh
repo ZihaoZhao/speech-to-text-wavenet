@@ -4,14 +4,14 @@
  # @Company      : Fudan University
  # @Date         : 2020-10-13 20:16:46
  # @LastEditors  : Zihao Zhao
- # @LastEditTime : 2020-10-25 10:31:50
- # @FilePath     : /speech-to-text-wavenet/torch_lyuan/train_script/train_pattern.sh
+ # @LastEditTime : 2020-11-02 22:25:33
+ # @FilePath     : /speech-to-text-wavenet/torch_lyuan/script/train_pattern.sh
  # @Description  : 
 ### 
 #!/usr/bin/env bash
 
 
-#/zhzhao/miniconda3/bin/conda init bash | conda activate pytorch16 | sh /zhzhao/code/wavenet_torch/torch_lyuan/train_script/train_pattern.sh
+#/zhzhao/miniconda3/bin/conda init bash | conda activate pytorch16 | sh /zhzhao/code/wavenet_torch/torch_lyuan/script/train_pattern.sh
 
 /zhzhao/miniconda3/envs/pytorch16/bin/python /zhzhao/code/wavenet_torch/torch_lyuan/train.py --exp pt_16_16_16_256 --sparse_mode pattern_pruning --pattern_para 16_16_16_256 --load_from /zhzhao/code/wavenet_torch/torch_lyuan/exp_result/best.pth --lr 0.001  --skip_exist  --save_excel pattern.xls
 /zhzhao/miniconda3/envs/pytorch16/bin/python /zhzhao/code/wavenet_torch/torch_lyuan/train.py --exp pt_8_16_16_256 --sparse_mode pattern_pruning  --pattern_para 8_16_16_256  --load_from /zhzhao/code/wavenet_torch/torch_lyuan/exp_result/best.pth --lr 0.001  --skip_exist  --save_excel pattern.xls

@@ -4,9 +4,9 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-02 19:41:26
+# LastEditTime : 2020-11-03 11:36:46
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
-# Description  : 
+# Description  : 0.001 0-5, 0.0001
 #-------------------------------------------# 
 
 import torch
@@ -14,6 +14,8 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 import torch.optim as optim
 import torch.nn.functional as F
+import torch.nn.utils.rnn as  rnn_utils
+import deepdish as dd
 
 import config_train as cfg
 from dataset import VCTK
@@ -51,7 +53,10 @@ def parse_args():
 
     parser.add_argument('--batch_size', type=int, help='1, 16, 32', default=32)
     parser.add_argument('--lr', type=float, help='0.001 for tensorflow', default=0.001)
+
     parser.add_argument('--load_from', type=str, help='.pth', default="/z")
+    parser.add_argument('--load_from_h5', type=str, help='.pth', default="/z")
+
     parser.add_argument('--skip_exist', action='store_true', help='if exist', default=False)
     parser.add_argument('--save_excel', type=str, help='exp.xls', default="default.xls")
 
@@ -105,9 +110,25 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
             if epoch == 0 and step_cnt == 0:
                 loss_val = validate(val_loader, model, loss_fn)
                 writer.add_scalar('val/loss', loss_val, epoch)
+                best_loss = loss_val
+                not_better_cnt = 0
                 val_loss_list.append(float(loss_val))
+                # f1, val_loss, tps, preds, poses = test_acc(val_loader, model, loss_fn)
+                # print(f1, val_loss, tps, preds, poses)
                 model.train()    
+
+            # wave = rnn_utils.pack_padded_sequence(wave, data['length_wave'], batch_first=True, enforce_sorted=False)
             logits = model(wave)
+            # logits, out_len = rnn_utils.pad_packed_sequence(logits, batch_first=True)
+            
+            # print(logits.size())
+            # print(data['length_wave'])
+            # exit()
+            mask = torch.zeros_like(logits)
+            for n in range(len(data['length_wave'])):
+                mask[:, :, :data['length_wave'][n]] = 1
+            logits *= mask
+
             logits = logits.permute(2, 0, 1)
             logits = F.log_softmax(logits, dim=2)
             # print(logits[:, 0, :].max(1))
@@ -129,7 +150,10 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
 
 
             # try:
-            loss = loss_fn(logits, text, data['length_wave'], data['length_text'])
+            loss = 0.0
+            for i in range(logits.size(1)):
+                loss += loss_fn(logits[:data['length_wave'][i], i:i+1, :], data['text'][i][0:data['length_text'][i]].cuda(), data['length_wave'][i], data['length_text'][i])
+            loss /= logits.size(1)
             scheduler.zero_grad()
             loss.backward()
             scheduler.step()
@@ -142,27 +166,34 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
                 writer.add_scalar('train/loss', _loss, epoch)
                 train_loss_list.append(float(_loss))
 
-            if step_cnt % int(12000/cfg.batch_size) == 1:
+            if step_cnt % int(12000/cfg.batch_size) == 10:
                 print("Epoch", epoch,
                         ", train step", step_cnt, "/", len(train_loader),
                         ", loss: ", round(float(_loss.data/step_cnt), 5))
                 torch.save(model.state_dict(), cfg.workdir+'/weights/last.pth')
 
-                if float(_loss.data/step_cnt) < 0.9:
+                if float(_loss.data/step_cnt) < 0.7:
                     # TODO get the correct evaluate results
-                    beam_results, beam_scores, timesteps, out_lens = decoder.decode(logits.permute(1, 0, 2))
+                    for i in range(logits.size(1)):
+                        logit = logits[:data['length_wave'][i], i:i+1, :]
+                        beam_results, beam_scores, timesteps, out_lens = decoder.decode(logit.permute(1, 0, 2))
 
-                    voc = np.tile(vocabulary, (cfg.batch_size, 1))
-                    pred = np.take(voc, beam_results[0][0][:out_lens[0][0]].data.numpy())
-                    text_np = np.take(voc, data['text'][0][0:data['length_text'][0]].cpu().numpy().astype(int))
+                        voc = np.tile(vocabulary, (cfg.batch_size, 1))
+                        pred = np.take(voc, beam_results[0][0][:out_lens[0][0]].data.numpy())
+                        text_np = np.take(voc, data['text'][i][0:data['length_text'][i]].cpu().numpy().astype(int))
 
-                    tp, pred, pos = utils.evalutes(utils.cvt_np2string(pred), utils.cvt_np2string(text_np))
-                    _tp += tp
-                    _pred += pred
-                    _pos += pos
+                        pred = [pred]
+                        text_np = [text_np]
+                        # print(utils.cvt_np2string(pred))
+                        # print(utils.cvt_np2string(text_np))
+
+                        tp, pred, pos = utils.evalutes(utils.cvt_np2string(pred), utils.cvt_np2string(text_np))
+                        _tp += tp
+                        _pred += pred
+                        _pos += pos
                     f1 = 2 * _tp / (_pred + _pos + 1e-10)
                 
-                    print("Val tp:", _tp, ",pred:", _pred, ",pos:", _pos, ",f1:", f1)
+                    print("             Train tp:", _tp, ",pred:", _pred, ",pos:", _pos, ",f1:", f1)
             step_cnt += 1
             # except:
             #     continue
@@ -231,7 +262,10 @@ def validate(val_loader, model, loss_fn):
                                     data['text'][i][0: data['length_text'][i]].cuda()])
             else:
                 continue
-            loss = loss_fn(logits, text, data['length_wave'], data['length_text'])
+            loss = 0.0
+            for i in range(logits.size(1)):
+                loss += loss_fn(logits[:data['length_wave'][i], i:i+1, :], data['text'][i][0:data['length_text'][i]].cuda(), data['length_wave'][i], data['length_text'][i])
+            loss /= logits.size(1)
             _loss += loss.data
             # beam_results, beam_scores, timesteps, out_lens = decoder.decode(logits.permute(1, 0, 2))
 
@@ -293,16 +327,23 @@ def test_acc(val_loader, model, loss_fn):
                 continue
             loss = loss_fn(logits, text, data['length_wave'], data['length_text'])
             _loss += loss.data
-            beam_results, beam_scores, timesteps, out_lens = decoder.decode(logits.permute(1, 0, 2))
+            for i in range(logits.size(1)):
+                logit = logits[:data['length_wave'][i], i:i+1, :]
+                beam_results, beam_scores, timesteps, out_lens = decoder.decode(logit.permute(1, 0, 2))
 
-            voc = np.tile(vocabulary, (cfg.batch_size, 1))
-            pred = np.take(voc, beam_results[0][0][:out_lens[0][0]].data.numpy())
-            text_np = np.take(voc, data['text'][0][0:data['length_text'][0]].cpu().numpy().astype(int))
+                voc = np.tile(vocabulary, (cfg.batch_size, 1))
+                pred = np.take(voc, beam_results[0][0][:out_lens[0][0]].data.numpy())
+                text_np = np.take(voc, data['text'][i][0:data['length_text'][i]].cpu().numpy().astype(int))
 
-            tp, pred, pos = utils.evalutes(utils.cvt_np2string(pred), utils.cvt_np2string(text_np))
-            tps += tp
-            preds += pred
-            poses += pos
+                pred = [pred]
+                text_np = [text_np]
+                # print(utils.cvt_np2string(pred))
+                # print(utils.cvt_np2string(text_np))
+
+                tp, pred, pos = utils.evalutes(utils.cvt_np2string(pred), utils.cvt_np2string(text_np))
+                tps += tp
+                preds += pred
+                poses += pos
             f1 = 2 * tps / (preds + poses + 1e-10)
             
             step_cnt += 1
@@ -312,6 +353,8 @@ def test_acc(val_loader, model, loss_fn):
     print("Val tps:", tps, ",preds:", preds, ",poses:", poses, ",f1:", f1)
 
     return f1, _loss/len(val_loader), tps, preds, poses
+
+
 
 def main():
     args = parse_args()
@@ -385,6 +428,23 @@ def main():
     if os.path.exists(cfg.load_from):
         model.load_state_dict(torch.load(cfg.load_from), strict=False)
         print("loading", cfg.load_from)
+
+    if os.path.exists(args.load_from_h5):
+        # model.load_state_dict(torch.load(args.load_from_h5), strict=True)
+        print("loading", args.load_from_h5)
+        model.train()
+        model_dict = model.state_dict()
+        print(model_dict.keys())
+        #先将参数值numpy转换为tensor形式
+        pretrained_dict = dd.io.load(args.load_from_h5)
+        print(pretrained_dict.keys())
+        new_pre_dict = {}
+        for k,v in pretrained_dict.items():
+            new_pre_dict[k] = torch.Tensor(v)
+        #更新
+        model_dict.update(new_pre_dict)
+        #加载
+        model.load_state_dict(model_dict)
 
     if args.find_pattern == True:
 

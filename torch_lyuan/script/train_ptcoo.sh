@@ -4,13 +4,13 @@
  # @Company      : Fudan University
  # @Date         : 2020-10-13 20:16:46
  # @LastEditors  : Zihao Zhao
- # @LastEditTime : 2020-10-25 10:32:11
- # @FilePath     : /speech-to-text-wavenet/torch_lyuan/train_script/train_ptcoo.sh
+ # @LastEditTime : 2020-11-02 22:25:26
+ # @FilePath     : /speech-to-text-wavenet/torch_lyuan/script/train_ptcoo.sh
  # @Description  : 
 ### 
 #!/usr/bin/env bash
 
-#/zhzhao/miniconda3/bin/conda init bash | conda activate pytorch16 | sh /zhzhao/code/wavenet_torch/torch_lyuan/train_script/train_ptcoo.sh
+#/zhzhao/miniconda3/bin/conda init bash | conda activate pytorch16 | sh /zhzhao/code/wavenet_torch/torch_lyuan/script/train_ptcoo.sh
 
 /zhzhao/miniconda3/envs/pytorch16/bin/python /zhzhao/code/wavenet_torch/torch_lyuan/train.py --exp ptcoo_16_16_16_192_64 --sparse_mode ptcoo_pruning --ptcoo_para 16_16_16_192_64 --load_from /zhzhao/code/wavenet_torch/torch_lyuan/exp_result/best.pth --lr 0.001  --skip_exist  --save_excel ptcoo.xls
 /zhzhao/miniconda3/envs/pytorch16/bin/python /zhzhao/code/wavenet_torch/torch_lyuan/train.py --exp ptcoo_16_16_16_168_56 --sparse_mode ptcoo_pruning --ptcoo_para 16_16_16_168_56 --load_from /zhzhao/code/wavenet_torch/torch_lyuan/exp_result/best.pth --lr 0.001  --skip_exist  --save_excel ptcoo.xls

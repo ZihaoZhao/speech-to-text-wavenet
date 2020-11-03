@@ -4,15 +4,15 @@
  # @Company      : Fudan University
  # @Date         : 2020-10-13 20:16:46
  # @LastEditors  : Zihao Zhao
- # @LastEditTime : 2020-11-02 20:04:40
+ # @LastEditTime : 2020-11-02 20:12:48
  # @FilePath     : /speech-to-text-wavenet/torch_lyuan/script/test_acc.sh
  # @Description  : 
 ### 
 #!/usr/bin/env bash
 
-#/zhzhao/miniconda3/bin/conda init bash | conda activate pytorch16 | sh /zhzhao/code/wavenet_torch/torch_lyuan/train_script/test_acc.sh
+#/zhzhao/miniconda3/bin/conda init bash | conda activate pytorch16 | sh /zhzhao/code/wavenet_torch/torch_lyuan/script/test_acc.sh
 
-excel_name="test_acc.xls"
+excel_name="test_acc2.xls"
 filenames=$(ls /zhzhao/code/wavenet_torch/torch_lyuan/exp_result/)
 # for file in ${filenames};do
 #     echo ${file}

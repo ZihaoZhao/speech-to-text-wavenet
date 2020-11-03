@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-10-27 17:13:06
+# LastEditTime : 2020-11-03 08:18:32
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/wavenet.py
 # Description  : 
 #-------------------------------------------# 
@@ -40,8 +40,10 @@ class Aconv1d(nn.Module):
 
     def forward(self, inputs):
         # padding number = (kernel_size - 1) * dilation / 2
-        # inputs = F.pad(inputs, (3*self.dilation, 3*self.dilation))
-        inputs = F.pad(inputs, (6*self.dilation, 0))
+        # print(inputs.size())
+        inputs = F.pad(inputs, (3*self.dilation, 3*self.dilation))
+        # print(inputs.size())
+        # inputs = F.pad(inputs, (6*self.dilation, 0))
 
 
         outputs = self.dilation_conv1d(inputs)
@@ -79,7 +81,9 @@ class WaveNet(nn.Module):
         self.conv1d = nn.Conv1d(in_channels=channels_in, out_channels=channels_out, kernel_size=1, bias=False)
         self.bn = nn.BatchNorm1d(channels_out, affine=True, track_running_stats=False)
 
-        self.resnet_block = nn.ModuleList([ResnetBlock(dilation, channels_out, channels_out) for dilation in dilations])
+        self.resnet_block_0 = nn.ModuleList([ResnetBlock(dilation, channels_out, channels_out) for dilation in dilations])
+        self.resnet_block_1 = nn.ModuleList([ResnetBlock(dilation, channels_out, channels_out) for dilation in dilations])
+        self.resnet_block_2 = nn.ModuleList([ResnetBlock(dilation, channels_out, channels_out) for dilation in dilations])
         self.conv1d_out = nn.Conv1d(channels_out, channels_out, kernel_size=1, bias=False)
         self.get_logits = nn.Conv1d(in_channels=channels_out, out_channels=num_classes, kernel_size=1)
 
@@ -87,10 +91,16 @@ class WaveNet(nn.Module):
         x = self.bn(self.conv1d(inputs))
         x = torch.tanh(x)
         outs = 0.0
-        for _ in range(self.num_layers):
-            for layer in self.resnet_block:
-                x, out = layer(x)
-                outs += out
+        # for _ in range(self.num_layers):
+        for layer in self.resnet_block_0:
+            x, out = layer(x)
+            outs += out
+        for layer in self.resnet_block_1:
+            x, out = layer(x)
+            outs += out
+        for layer in self.resnet_block_2:
+            x, out = layer(x)
+            outs += out
 
         outs = torch.tanh(self.bn(self.conv1d_out(outs)))
 

@@ -3,9 +3,9 @@
 # E-mail       : zhzhao18@fudan.edu.cn
 # Company      : Fudan University
 # Date         : 2020-10-11 15:28:41
-# LastEditors  : ,: Zihao Zhao
-# LastEditTime : ,: 2020-10-22 16:14:38
-# FilePath     : ,: /speech-to-text-wavenet/torch_lyuan/dataset.py
+# LastEditors  : Zihao Zhao
+# LastEditTime : 2020-11-03 09:01:53
+# FilePath     : /speech-to-text-wavenet/torch_lyuan/dataset.py
 # Description  : 
 #-------------------------------------------# 
 
@@ -95,6 +95,9 @@ class VCTK(Dataset):
             return len(self.train_filenames)
         else:
             return len(self.test_filenames)
+
+
+
 
 if __name__ == '__main__':
     # train_filenames, test_filenames = json.load(open('/lyuan/code/speech-to-text-wavenet/data/list.json', 'r', encoding='utf-8'))

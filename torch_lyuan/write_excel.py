@@ -4,7 +4,7 @@
 # Company      : ,: Fudan University
 # Date         : ,: 2020-10-23 14:12:06
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-02 19:45:43
+# LastEditTime : 2020-11-02 21:38:01
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/write_excel.py
 # Description  : ,: 
 #-------------------------------------------# 
@@ -166,14 +166,14 @@ def write_test_acc(excel_name, exp_name,
     # print(pattern_num_memory_dict)
     if not os.path.exists(excel_name):
         base_row = 0
+        wb = xlwt.Workbook(encoding='ascii')
+        ws = wb.add_sheet('sheet1')
         ws.write(base_row, 0, 'exp_name')
         ws.write(base_row, 1, 'f1')
         ws.write(base_row, 2, 'val_loss')
         ws.write(base_row, 3, 'tps')
         ws.write(base_row, 4, 'preds')
         ws.write(base_row, 5, 'poses')
-        wb = xlwt.Workbook(encoding='ascii')
-        ws = wb.add_sheet('sheet1')
     else:
         base_row = blank_raw(excel_name)
         data = xlrd.open_workbook(excel_name, formatting_info=True)
