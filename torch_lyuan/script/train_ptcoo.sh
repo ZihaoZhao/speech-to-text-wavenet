@@ -4,7 +4,7 @@
  # @Company      : Fudan University
  # @Date         : 2020-10-13 20:16:46
  # @LastEditors  : Zihao Zhao
- # @LastEditTime : 2020-11-02 22:25:26
+ # @LastEditTime : 2020-11-03 11:57:42
  # @FilePath     : /speech-to-text-wavenet/torch_lyuan/script/train_ptcoo.sh
  # @Description  : 
 ### 
@@ -20,3 +20,6 @@
 /zhzhao/miniconda3/envs/pytorch16/bin/python /zhzhao/code/wavenet_torch/torch_lyuan/train.py --exp ptcoo_16_16_16_72_24 --sparse_mode ptcoo_pruning  --ptcoo_para 16_16_16_72_24 --load_from /zhzhao/code/wavenet_torch/torch_lyuan/exp_result/best.pth --lr 0.001   --skip_exist --save_excel ptcoo.xls
 /zhzhao/miniconda3/envs/pytorch16/bin/python /zhzhao/code/wavenet_torch/torch_lyuan/train.py --exp ptcoo_16_16_16_48_16 --sparse_mode ptcoo_pruning  --ptcoo_para 16_16_16_48_16 --load_from /zhzhao/code/wavenet_torch/torch_lyuan/exp_result/best.pth --lr 0.001   --skip_exist --save_excel ptcoo.xls
 /zhzhao/miniconda3/envs/pytorch16/bin/python /zhzhao/code/wavenet_torch/torch_lyuan/train.py --exp ptcoo_16_16_16_24_8 --sparse_mode ptcoo_pruning   --ptcoo_para 16_16_16_24_8  --load_from /zhzhao/code/wavenet_torch/torch_lyuan/exp_result/best.pth --lr 0.001   --skip_exist --save_excel ptcoo.xls
+/zhzhao/miniconda3/envs/pytorch16/bin/python /zhzhao/code/wavenet_torch/torch_lyuan/train.py --exp ptcoo_16_16_16_18_6 --sparse_mode ptcoo_pruning   --ptcoo_para 16_16_16_18_6  --load_from /zhzhao/code/wavenet_torch/torch_lyuan/exp_result/best.pth --lr 0.001   --skip_exist --save_excel ptcoo.xls
+/zhzhao/miniconda3/envs/pytorch16/bin/python /zhzhao/code/wavenet_torch/torch_lyuan/train.py --exp ptcoo_16_16_16_12_4 --sparse_mode ptcoo_pruning   --ptcoo_para 16_16_16_12_4  --load_from /zhzhao/code/wavenet_torch/torch_lyuan/exp_result/best.pth --lr 0.001   --skip_exist --save_excel ptcoo.xls
+/zhzhao/miniconda3/envs/pytorch16/bin/python /zhzhao/code/wavenet_torch/torch_lyuan/train.py --exp ptcoo_16_16_16_6_2 --sparse_mode ptcoo_pruning   --ptcoo_para 16_16_16_6_2  --load_from /zhzhao/code/wavenet_torch/torch_lyuan/exp_result/best.pth --lr 0.001   --skip_exist --save_excel ptcoo.xls

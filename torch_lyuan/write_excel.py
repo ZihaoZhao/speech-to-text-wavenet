@@ -4,7 +4,7 @@
 # Company      : ,: Fudan University
 # Date         : ,: 2020-10-23 14:12:06
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-02 21:38:01
+# LastEditTime : 2020-11-03 14:58:39
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/write_excel.py
 # Description  : ,: 
 #-------------------------------------------# 
@@ -106,6 +106,14 @@ def write_pattern_curve_analyse(excel_name, exp_name, patterns, pattern_match_nu
     # val_loss_list = [1.32, 1.543, 1.111, 1.098]
 
     # print(pattern_num_memory_dict)
+    if len(patterns) > 200:
+        patterns                 = patterns[:200]
+        pattern_match_num        = pattern_match_num[:200]
+        pattern_coo_nnz          = pattern_coo_nnz[:200]
+        pattern_nnz              = pattern_nnz[:200]
+        pattern_num_memory_dict  = pattern_num_memory_dict[:200]
+        pattern_num_coo_nnz_dict = pattern_num_coo_nnz_dict[:200]
+
     if not os.path.exists(excel_name):
         base_row = 0
         wb = xlwt.Workbook(encoding='ascii')

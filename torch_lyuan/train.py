@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-03 11:36:46
+# LastEditTime : 2020-11-03 15:07:49
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 0.001 0-5, 0.0001
 #-------------------------------------------# 
@@ -105,13 +105,16 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         for data in train_loader:
             # data = prefetcher.next()
             wave = data['wave'].cuda()  # [1, 128, 109]
-            model = pruning(model, cfg.sparse_mode)
-            model.train() 
+            if step_cnt % 10 == 0:
+                model = pruning(model, cfg.sparse_mode)
+                model.train() 
             if epoch == 0 and step_cnt == 0:
                 loss_val = validate(val_loader, model, loss_fn)
                 writer.add_scalar('val/loss', loss_val, epoch)
                 best_loss = loss_val
                 not_better_cnt = 0
+                torch.save(model.state_dict(), cfg.workdir+'/weights/best.pth')
+                print("saved", cfg.workdir+'/weights/best.pth', not_better_cnt)
                 val_loss_list.append(float(loss_val))
                 # f1, val_loss, tps, preds, poses = test_acc(val_loader, model, loss_fn)
                 # print(f1, val_loss, tps, preds, poses)
@@ -220,7 +223,7 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         else:
             not_better_cnt += 1
 
-        if not_better_cnt > 4:
+        if not_better_cnt > 1:
             write_excel(os.path.join(cfg.work_root, cfg.save_excel), 
                             cfg.exp_name, train_loss_list, val_loss_list)
             exit()
@@ -464,7 +467,7 @@ def main():
             if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
                 raw_w = para_list[i]
                 if raw_w.size(0) == 128 and raw_w.size(1) == 128:
-                    patterns, pattern_match_num, pattern_coo_nnz, pattern_nnz \
+                    patterns, pattern_match_num, pattern_coo_nnz, pattern_nnz, pattern_inner_nnz \
                                     = find_pattern_by_similarity(raw_w
                                         , cfg.find_pattern_num
                                         , cfg.find_pattern_shape
@@ -477,10 +480,11 @@ def main():
                                         , patterns
                                         , pattern_match_num
                                         , pattern_coo_nnz
-                                        , pattern_nnz)
+                                        , pattern_nnz
+                                        , pattern_inner_nnz)
                                         
                     write_pattern_curve_analyse(os.path.join(cfg.work_root, args.save_pattern_count_excel)
-                                        , cfg.exp_name + " " + args.find_pattern_shape +" " + args.find_pattern_para
+                                        , cfg.exp_name + " " + args.find_pattern_shape + " " + args.find_pattern_para
                                         , patterns, pattern_match_num, pattern_coo_nnz, pattern_nnz
                                         , pattern_num_memory_dict, pattern_num_coo_nnz_dict)
 

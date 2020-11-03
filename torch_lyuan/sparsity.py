@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-18 15:31:19
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-02 14:05:31
+# LastEditTime : 2020-11-03 15:09:37
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/sparsity.py
 # Description  : 
 #-------------------------------------------# 
@@ -576,10 +576,11 @@ def find_pattern_by_similarity(raw_w, pattern_num, pattern_shape, sparsity, coo_
                 idx += 1
 
     # output score maps
-    score_maps = list()
+    score_maps             = list()
     pattern_match_num_dict = dict()
-    pattern_coo_nnz_dict = dict()
-    pattern_nnz_dict = dict()
+    pattern_coo_nnz_dict   = dict()
+    pattern_nnz_dict       = dict()
+    pattern_inner_nnz_dict = dict()
     print(len(pattern_candidates))
     pattern_candidates, pattern_sort_index = sort_pattern_candidates(pattern_candidates)
 
@@ -621,6 +622,8 @@ def find_pattern_by_similarity(raw_w, pattern_num, pattern_shape, sparsity, coo_
                                     ",output_max:", int(score_max), 
                                     ",score:", int(match_num), 
                                     ",removed:", int(remove_bitmap.sum()))
+            p = 1-p
+            pattern_inner_nnz_dict[p.cpu().numpy().tostring()] = p.sum()
             pattern_match_num_dict[p.cpu().numpy().tostring()] = match_num
             pattern_coo_nnz_dict[p.cpu().numpy().tostring()] = (score_map * remove_bitmap_add).sum()
 
@@ -637,7 +640,7 @@ def find_pattern_by_similarity(raw_w, pattern_num, pattern_shape, sparsity, coo_
         pattern_nnz_dict[p.cpu().numpy().tostring()] = nnz_num
 
         # TODO save more
-        if len(pattern_match_num_dict.keys()) >= 200:
+        if len(pattern_match_num_dict.keys()) >= 500:
             break
 
     print(len(pattern_match_num_dict))
@@ -648,19 +651,21 @@ def find_pattern_by_similarity(raw_w, pattern_num, pattern_shape, sparsity, coo_
         pattern_num = len(pattern_match_num_dict)
     patterns = list()
     pattern_match_num = list()
-    pattern_coo_nnz = list()
-    pattern_nnz = list()
+    pattern_coo_nnz   = list()
+    pattern_nnz       = list()
+    pattern_inner_nnz = list()
     patterns = sorted(pattern_match_num_dict, key = lambda k: k[pattern_num])
     for p in patterns:
         pattern_match_num.append(pattern_match_num_dict[p])
         pattern_coo_nnz.append(pattern_coo_nnz_dict[p])
         pattern_nnz.append(pattern_nnz_dict[p])
+        pattern_inner_nnz.append(pattern_inner_nnz_dict[p])
         # patterns[p] = score
         p = np.frombuffer(p, dtype=np.float32).reshape(pattern_shape)
         # print(p, score)
 
     # exit()
-    return patterns, np.array(pattern_match_num), np.array(pattern_coo_nnz), np.array(pattern_nnz)
+    return patterns, np.array(pattern_match_num), np.array(pattern_coo_nnz), np.array(pattern_nnz), np.array(pattern_inner_nnz)
     
 
 #----------------description----------------# 
@@ -670,14 +675,15 @@ def find_pattern_by_similarity(raw_w, pattern_num, pattern_shape, sparsity, coo_
 # param {*} pattern_nnz_dict
 # return {*} pattern_num_memory_dict, pattern_num_coo_nnz_dict
 #-------------------------------------------# 
-def pattern_curve_analyse(raw_w_shape, pattern_shape, patterns, pattern_match_num, pattern_coo_nnz, pattern_nnz):
+def pattern_curve_analyse(raw_w_shape, pattern_shape, patterns, pattern_match_num, pattern_coo_nnz, pattern_nnz, pattern_inner_nnz):
     
     submatrix_num = (raw_w_shape[0] // pattern_shape[0]) * (raw_w_shape[1] // pattern_shape[1])
     pattern_num_memory_dict = dict()
     pattern_num_coo_nnz_dict = dict()
-    pattern_num_list = [1, 2, 4, 8, 12, 16, 24, 32, 48, 64, 96, 128]
+    pattern_num_list = [1, 2, 4, 8, 12, 16, 24, 32, 48, 64, 96, 128, 256, 512]
     for pattern_num in pattern_num_list:
-        # pattern_bit_num = 
+        pattern_bit_num = pattern_inner_nnz[:pattern_num].sum() * (math.log(pattern_shape[0], 2) + math.log(pattern_shape[1], 2))
+        
         if pattern_num == 1:
             pattern_bit = 1
         else:
@@ -688,7 +694,7 @@ def pattern_curve_analyse(raw_w_shape, pattern_shape, patterns, pattern_match_nu
                             + pattern_nnz[pattern_num:].sum())
         coo_idx_bit_num = (math.log(pattern_shape[0], 2) + math.log(pattern_shape[1], 2)) \
                             * coo_idx_num
-        memory_cost = pattern_idx_bit_num + coo_idx_bit_num
+        memory_cost = pattern_idx_bit_num + coo_idx_bit_num + pattern_bit_num
         pattern_num_memory_dict[pattern_num] = memory_cost
         pattern_num_coo_nnz_dict[pattern_num] = coo_idx_num
         
