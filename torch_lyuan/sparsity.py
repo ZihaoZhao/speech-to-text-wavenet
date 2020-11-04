@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-18 15:31:19
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-04 10:54:33
+# LastEditTime : 2020-11-04 14:27:49
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/sparsity.py
 # Description  : 
 #-------------------------------------------# 
@@ -689,7 +689,7 @@ def pattern_curve_analyse(raw_w_shape, pattern_shape, patterns, pattern_match_nu
     pattern_num_coo_nnz_dict = dict()
     pattern_num_list = [1, 2, 4, 8, 12, 16, 24, 32, 48, 64, 96, 128, 256, 512]
     for pattern_num in pattern_num_list:
-        if pattern_num > len(patterns) * 2:
+        if pattern_num >= len(patterns) * 2:
             break
         pattern_bit_num = pattern_inner_nnz[:pattern_num].sum() * (math.log(pattern_shape[0], 2) + math.log(pattern_shape[1], 2))
         

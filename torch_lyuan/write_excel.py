@@ -4,7 +4,7 @@
 # Company      : ,: Fudan University
 # Date         : ,: 2020-10-23 14:12:06
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-04 11:04:03
+# LastEditTime : 2020-11-04 14:38:55
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/write_excel.py
 # Description  : ,: 
 #-------------------------------------------# 
@@ -164,8 +164,25 @@ def write_pattern_curve_analyse(excel_name, exp_name, patterns, pattern_match_nu
     # ptnum_list = range(len(pattern_num_memory_dict))
     for i, p_num in enumerate(pattern_num_memory_dict.keys()):
         ws.write(pattern_num_row, i+1, int(p_num))
-        ws.write(pattern_num_memory_row, i+1, int(pattern_num_memory_dict[p_num]))
-        ws.write(pattern_num_cal_num_row, i+1, int(pattern_num_cal_num_dict[p_num]))
+
+        if int(pattern_num_memory_dict[p_num]) == int(np.array([m for m in pattern_num_memory_dict.values()]).min()):
+            style = xlwt.XFStyle() 
+            font = xlwt.Font() 
+            font.colour_index = 2
+            style.font = font
+            ws.write(pattern_num_memory_row, i+1, int(pattern_num_memory_dict[p_num]), style)
+        else:
+            ws.write(pattern_num_memory_row, i+1, int(pattern_num_memory_dict[p_num]))
+
+        if int(pattern_num_cal_num_dict[p_num]) == int(np.array([m for m in pattern_num_cal_num_dict.values()]).min()):
+            style = xlwt.XFStyle() 
+            font = xlwt.Font() 
+            font.colour_index = 2
+            style.font = font
+            ws.write(pattern_num_cal_num_row, i+1, int(pattern_num_cal_num_dict[p_num]), style)
+        else:
+            ws.write(pattern_num_cal_num_row, i+1, int(pattern_num_cal_num_dict[p_num]))
+
         ws.write(pattern_num_coo_nnz_row, i+1, int(pattern_num_coo_nnz_dict[p_num]))
 
     wb.save(excel_name)
@@ -188,6 +205,12 @@ def write_test_acc(excel_name, exp_name,
         ws.write(base_row, 3, 'tps')
         ws.write(base_row, 4, 'preds')
         ws.write(base_row, 5, 'poses')
+        ws.write(base_row+1, 0, exp_name)
+        ws.write(base_row+1, 1, float(f1))
+        ws.write(base_row+1, 2, float(val_loss))
+        ws.write(base_row+1, 3, int(tps))
+        ws.write(base_row+1, 4, int(preds))
+        ws.write(base_row+1, 5, int(poses))
     else:
         base_row = blank_raw(excel_name)
         data = xlrd.open_workbook(excel_name, formatting_info=True)

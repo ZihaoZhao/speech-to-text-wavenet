@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-04 11:01:12
+# LastEditTime : 2020-11-04 11:16:59
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 0.001 0-5, 0.0001
 #-------------------------------------------# 
@@ -440,22 +440,22 @@ def main():
         model.load_state_dict(torch.load(cfg.load_from), strict=False)
         print("loading", cfg.load_from)
 
-    if os.path.exists(args.load_from_h5):
-        # model.load_state_dict(torch.load(args.load_from_h5), strict=True)
-        print("loading", args.load_from_h5)
-        model.train()
-        model_dict = model.state_dict()
-        print(model_dict.keys())
-        #先将参数值numpy转换为tensor形式
-        pretrained_dict = dd.io.load(args.load_from_h5)
-        print(pretrained_dict.keys())
-        new_pre_dict = {}
-        for k,v in pretrained_dict.items():
-            new_pre_dict[k] = torch.Tensor(v)
-        #更新
-        model_dict.update(new_pre_dict)
-        #加载
-        model.load_state_dict(model_dict)
+    # if os.path.exists(args.load_from_h5):
+    #     # model.load_state_dict(torch.load(args.load_from_h5), strict=True)
+    #     print("loading", args.load_from_h5)
+    #     model.train()
+    #     model_dict = model.state_dict()
+    #     print(model_dict.keys())
+    #     #先将参数值numpy转换为tensor形式
+    #     pretrained_dict = dd.io.load(args.load_from_h5)
+    #     print(pretrained_dict.keys())
+    #     new_pre_dict = {}
+    #     for k,v in pretrained_dict.items():
+    #         new_pre_dict[k] = torch.Tensor(v)
+    #     #更新
+    #     model_dict.update(new_pre_dict)
+    #     #加载
+    #     model.load_state_dict(model_dict)
 
     if args.find_pattern == True:
 
