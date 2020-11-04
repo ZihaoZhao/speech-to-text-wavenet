@@ -639,7 +639,7 @@ def find_pattern_by_similarity(raw_w, pattern_num, pattern_shape, sparsity, coo_
         pattern_nnz_dict[p.cpu().numpy().tostring()] = nnz_num
 
         # save more
-        if len(pattern_match_num_dict.keys()) >= 100 or int(remove_bitmap.sum()) == len(pattern_candidates):
+        if len(pattern_match_num_dict.keys()) >= 500 or int(remove_bitmap.sum()) == len(pattern_candidates):
             break
     print(len(pattern_match_num_dict))
 
