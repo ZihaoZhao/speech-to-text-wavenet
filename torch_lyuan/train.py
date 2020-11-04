@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-03 17:45:10
+# LastEditTime : 2020-11-04 11:01:12
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 0.001 0-5, 0.0001
 #-------------------------------------------# 
@@ -485,7 +485,7 @@ def main():
                                         , cfg.find_zero_threshold
                                         , cfg.find_score_threshold)
 
-                    pattern_num_memory_dict, pattern_num_coo_nnz_dict \
+                    pattern_num_memory_dict, pattern_num_cal_num_dict, pattern_num_coo_nnz_dict \
                                     = pattern_curve_analyse(raw_w.shape
                                         , cfg.find_pattern_shape
                                         , patterns
@@ -497,7 +497,8 @@ def main():
                     write_pattern_curve_analyse(os.path.join(cfg.work_root, args.save_pattern_count_excel)
                                         , cfg.exp_name + " " + args.find_pattern_shape + " " + args.find_pattern_para
                                         , patterns, pattern_match_num, pattern_coo_nnz, pattern_nnz
-                                        , pattern_num_memory_dict, pattern_num_coo_nnz_dict)
+                                        , pattern_inner_nnz
+                                        , pattern_num_memory_dict, pattern_num_cal_num_dict, pattern_num_coo_nnz_dict)
 
                     # write_pattern_count(os.path.join(cfg.work_root, args.save_pattern_count_excel)
                     #                     , cfg.exp_name + " " + args.find_pattern_shape +" " + args.find_pattern_para

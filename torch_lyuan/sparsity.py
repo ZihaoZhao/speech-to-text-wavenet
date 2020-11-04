@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-18 15:31:19
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-03 21:13:36
+# LastEditTime : 2020-11-04 10:54:33
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/sparsity.py
 # Description  : 
 #-------------------------------------------# 
@@ -685,6 +685,7 @@ def pattern_curve_analyse(raw_w_shape, pattern_shape, patterns, pattern_match_nu
     
     submatrix_num = (raw_w_shape[0] // pattern_shape[0]) * (raw_w_shape[1] // pattern_shape[1])
     pattern_num_memory_dict = dict()
+    pattern_num_cal_num_dict = dict()
     pattern_num_coo_nnz_dict = dict()
     pattern_num_list = [1, 2, 4, 8, 12, 16, 24, 32, 48, 64, 96, 128, 256, 512]
     for pattern_num in pattern_num_list:
@@ -703,11 +704,16 @@ def pattern_curve_analyse(raw_w_shape, pattern_shape, patterns, pattern_match_nu
         coo_idx_bit_num = (math.log(pattern_shape[0], 2) + math.log(pattern_shape[1], 2)) \
                             * coo_idx_num
         memory_cost = pattern_idx_bit_num + coo_idx_bit_num + pattern_bit_num
+
+        cal_num = (pattern_match_num[:pattern_num] * pattern_inner_nnz[:pattern_num]).sum() \
+                    + coo_idx_num
+
         pattern_num_memory_dict[pattern_num] = memory_cost
+        pattern_num_cal_num_dict[pattern_num] = cal_num
         pattern_num_coo_nnz_dict[pattern_num] = coo_idx_num
         
     # print(pattern_num_memory_dict)
-    return pattern_num_memory_dict, pattern_num_coo_nnz_dict
+    return pattern_num_memory_dict, pattern_num_cal_num_dict, pattern_num_coo_nnz_dict
 
 
 #----------------description----------------# 
