@@ -126,7 +126,7 @@ def write_pattern_curve_analyse_lstm(excel_name, sheet_name, exp_name, patterns,
             ws = wb.get_sheet(sheet_name)
         else:
             ws = wb.add_sheet(sheet_name)
-        base_row = blank_row(wb,sheet_name)
+        base_row = blank_row(excel_name,sheet_name)
             
 
     name_row = base_row + 1
