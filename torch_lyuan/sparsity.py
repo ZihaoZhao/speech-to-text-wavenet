@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-18 15:31:19
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-05 12:46:34
+# LastEditTime : 2020-11-05 15:25:54
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/sparsity.py
 # Description  : 
 #-------------------------------------------# 
@@ -722,7 +722,7 @@ def pattern_curve_analyse(raw_w_shape, pattern_shape, patterns, pattern_match_nu
 #-------------------------------------------# 
 def sort_pattern_candidates(pattern_candidates):
     pattern_candidates_sorted = pattern_candidates.copy()
-    pattern_sort_index = sorted(range(len(pattern_candidates)), key=lambda k: pattern_candidates[k].sum(), reverse=True)
+    pattern_sort_index = sorted(range(len(pattern_candidates)), key=lambda k: pattern_candidates[k].sum(), reverse=False)
     # print(pattern_sort_index)
     pattern_candidates_sorted = [pattern_candidates_sorted[i] for i in pattern_sort_index]
     # for i in range(len(pattern_candidates)-1):
