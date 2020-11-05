@@ -99,6 +99,101 @@ def write_pattern_count(excel_name, exp_name, nnz_list, count_list):
     wb.save(excel_name)
     print("results saved in", excel_name)
 
+def write_pattern_curve_analyse_lstm(excel_name, sheet_name, exp_name, patterns, pattern_match_num, pattern_coo_nnz, pattern_nnz, pattern_inner_nnz,
+                                                        pattern_num_memory_dict, pattern_num_cal_num_dict, pattern_num_coo_nnz_dict):
+    # train_loss_list = [1.32, 1.543, 1.111, 1.098]
+    # val_loss_list = [1.32, 1.543, 1.111, 1.098]
+
+    # print(pattern_num_memory_dict)
+    if len(patterns) > 200:
+        patterns                 = patterns[:200]
+        pattern_match_num        = pattern_match_num[:200]
+        pattern_coo_nnz          = pattern_coo_nnz[:200]
+        pattern_nnz              = pattern_nnz[:200]
+        pattern_inner_nnz        = pattern_inner_nnz[:200]
+
+    if not os.path.exists(os.path.dirname(excel_name)):
+        os.makedirs(os.path.dirname(excel_name))
+
+    if not os.path.exists(excel_name):
+        base_row = 0
+        wb = xlwt.Workbook(encoding='ascii')
+        ws = wb.add_sheet(sheet_name)
+    else:
+        base_row = blank_raw(excel_name)
+        data = xlrd.open_workbook(excel_name, formatting_info=True)
+        wb = copy(wb=data)
+        if sheet_name in data.sheet_names():
+            ws = wb.get_sheet_by_name(sheet_name)
+        else:
+            ws = wb.add_sheet(sheet_name)
+            
+
+    name_row = base_row + 1
+    ptid_row = base_row + 2
+    match_num_row = base_row + 3
+    pt_nnz_row = base_row + 4
+    coo_nnz_row = base_row + 5
+    nnz_num_row = base_row + 6
+
+    pattern_num_row = base_row + 8
+    pattern_num_memory_row = base_row + 9
+    pattern_num_cal_num_row = base_row + 10
+    pattern_num_coo_nnz_row = base_row + 11
+
+
+
+    ws.write(name_row, 0, exp_name)
+    ws.write(ptid_row, 0, 'pattern id')
+    ws.write(pt_nnz_row, 0, 'pattern nnz')
+    ws.write(match_num_row, 0, 'match_num')
+    ws.write(coo_nnz_row, 0, 'match_coo_nnz')
+    ws.write(nnz_num_row, 0, 'match_nnz_num')
+
+    ws.write(pattern_num_row, 0, 'pattern_num')
+    ws.write(pattern_num_memory_row, 0, 'memory')
+    ws.write(pattern_num_cal_num_row, 0, 'cal_num')
+    ws.write(pattern_num_coo_nnz_row, 0, 'left_coo')
+
+    ptid_list = range(len(patterns))
+    for i, e in enumerate(ptid_list):
+        ws.write(ptid_row, i+1, int(e))
+    for i, t in enumerate(pattern_inner_nnz):
+        ws.write(pt_nnz_row, i+1, int(t))
+    for i, t in enumerate(pattern_match_num):
+        ws.write(match_num_row, i+1, int(t))
+    for i, t in enumerate(pattern_coo_nnz):
+        ws.write(coo_nnz_row, i+1, int(t))
+    for i, t in enumerate(pattern_nnz):
+        ws.write(nnz_num_row, i+1, int(t))
+
+    # ptnum_list = range(len(pattern_num_memory_dict))
+    for i, p_num in enumerate(pattern_num_memory_dict.keys()):
+        ws.write(pattern_num_row, i+1, int(p_num))
+
+        if int(pattern_num_memory_dict[p_num]) == int(np.array([m for m in pattern_num_memory_dict.values()]).min()):
+            style = xlwt.XFStyle() 
+            font = xlwt.Font() 
+            font.colour_index = 2
+            style.font = font
+            ws.write(pattern_num_memory_row, i+1, int(pattern_num_memory_dict[p_num]), style)
+        else:
+            ws.write(pattern_num_memory_row, i+1, int(pattern_num_memory_dict[p_num]))
+
+        if int(pattern_num_cal_num_dict[p_num]) == int(np.array([m for m in pattern_num_cal_num_dict.values()]).min()):
+            style = xlwt.XFStyle() 
+            font = xlwt.Font() 
+            font.colour_index = 2
+            style.font = font
+            ws.write(pattern_num_cal_num_row, i+1, int(pattern_num_cal_num_dict[p_num]), style)
+        else:
+            ws.write(pattern_num_cal_num_row, i+1, int(pattern_num_cal_num_dict[p_num]))
+
+        ws.write(pattern_num_coo_nnz_row, i+1, int(pattern_num_coo_nnz_dict[p_num]))
+
+    wb.save(excel_name)
+    print("results saved in", excel_name)
+
 
 def write_pattern_curve_analyse(excel_name, exp_name, patterns, pattern_match_num, pattern_coo_nnz, pattern_nnz, pattern_inner_nnz,
                                                         pattern_num_memory_dict, pattern_num_cal_num_dict, pattern_num_coo_nnz_dict):

@@ -627,10 +627,8 @@ def find_pattern_by_similarity(raw_w, pattern_num, pattern_shape, sparsity, coo_
             pattern_inner_nnz_dict[p.cpu().numpy().tostring()] = p.sum()
             pattern_match_num_dict[p.cpu().numpy().tostring()] = match_num
             pattern_coo_nnz_dict[p.cpu().numpy().tostring()] = (score_map * remove_bitmap_add).sum()
-
         else:
             pass
-        
         for k in range(raw_w.size(2)):
             for i in range(0, p_num_x):
                 for j in range(0, p_num_y):
@@ -640,10 +638,9 @@ def find_pattern_by_similarity(raw_w, pattern_num, pattern_shape, sparsity, coo_
 
         pattern_nnz_dict[p.cpu().numpy().tostring()] = nnz_num
 
-        # TODO save more
-        if len(pattern_match_num_dict.keys()) >= 500:
+        # save more
+        if len(pattern_match_num_dict.keys()) >= 500 or int(remove_bitmap.sum()) == len(pattern_candidates):
             break
-
     print(len(pattern_match_num_dict))
 
 
