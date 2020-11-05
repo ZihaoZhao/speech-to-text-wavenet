@@ -214,6 +214,7 @@ def write_pattern_curve_analyse(excel_name, exp_name, patterns, pattern_match_nu
     else:
         base_row = blank_raw(excel_name)
         data = xlrd.open_workbook(excel_name, formatting_info=True)
+        
         wb = copy(wb=data)
         ws = wb.get_sheet(0)
 
@@ -330,8 +331,11 @@ def blank_raw(excel_name):
 
 def blank_row(excel_name, sheet_name):
     wb = xlrd.open_workbook(excel_name)
-    sheet1 = wb.sheet_by_name(sheet_name)
-    rowNum = sheet1.nrows
+    if sheet_name not in wb.sheet_names():
+        rowNum = 0
+    else:
+        sheet1 = wb.sheet_by_name(sheet_name)
+        rowNum = sheet1.nrows
     return rowNum
 
 
