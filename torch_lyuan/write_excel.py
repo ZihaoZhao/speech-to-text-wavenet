@@ -120,13 +120,13 @@ def write_pattern_curve_analyse_lstm(excel_name, sheet_name, exp_name, patterns,
         wb = xlwt.Workbook(encoding='ascii')
         ws = wb.add_sheet(sheet_name)
     else:
-        base_row = blank_raw(excel_name)
         data = xlrd.open_workbook(excel_name, formatting_info=True)
         wb = copy(wb=data)
         if sheet_name in data.sheet_names():
-            ws = wb.get_sheet_by_name(sheet_name)
+            ws = wb.get_sheet(sheet_name)
         else:
             ws = wb.add_sheet(sheet_name)
+        base_row = blank_row(wb,sheet_name)
             
 
     name_row = base_row + 1
@@ -140,7 +140,6 @@ def write_pattern_curve_analyse_lstm(excel_name, sheet_name, exp_name, patterns,
     pattern_num_memory_row = base_row + 9
     pattern_num_cal_num_row = base_row + 10
     pattern_num_coo_nnz_row = base_row + 11
-
 
 
     ws.write(name_row, 0, exp_name)
@@ -329,6 +328,11 @@ def blank_raw(excel_name):
     rowNum = sheet1.nrows
     return rowNum
 
+def blank_row(excel_name, sheet_name):
+    wb = xlrd.open_workbook(excel_name)
+    sheet1 = wb.sheet_by_name(sheet_name)
+    rowNum = sheet1.nrows
+    return rowNum
 
 
 if __name__ == "__main__":
