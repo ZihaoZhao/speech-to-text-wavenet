@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-04 19:37:49
+# LastEditTime : 2020-11-05 12:18:03
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 0.001 0-5, 0.0001
 #-------------------------------------------# 
@@ -376,7 +376,7 @@ def main():
         cfg.find_pattern_shape = [int(args.find_pattern_shape.split('_')[0]), int(args.find_pattern_shape.split('_')[1])]
         cfg.find_zero_threshold = float(args.find_pattern_para.split('_')[0])
         cfg.find_score_threshold = int(args.find_pattern_para.split('_')[1])
-        if int(cfg.find_pattern_shape[0] * cfg.find_pattern_shape[0] * cfg.find_zero_threshold) <= cfg.find_score_threshold:
+        if int(cfg.find_pattern_shape[0] * cfg.find_pattern_shape[1]) <= cfg.find_score_threshold:
             exit()
 
     if args.skip_exist == True:

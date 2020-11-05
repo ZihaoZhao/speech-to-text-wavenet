@@ -4,14 +4,14 @@
  # @Company      : Fudan University
  # @Date         : 2020-10-13 20:16:46
  # @LastEditors  : Zihao Zhao
- # @LastEditTime : 2020-11-05 10:20:09
+ # @LastEditTime : 2020-11-05 11:55:39
  # @FilePath     : /speech-to-text-wavenet/torch_lyuan/script/find_pattern.sh
  # @Description  : 
 ### 
 #!/usr/bin/env bash
 
 #/zhzhao/miniconda3/bin/conda init bash | conda activate pytorch16 | bash /zhzhao/code/wavenet_torch/torch_lyuan/script/find_pattern.sh
-exp_name="pruning_from_dense_color_2"
+exp_name="pruning_from_dense_color_5"
 excel_name=$exp_name".xls"
 model_name="/zhzhao/code/wavenet_torch/torch_lyuan/exp_result/best.pth"
 

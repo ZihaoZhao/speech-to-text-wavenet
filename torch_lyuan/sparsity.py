@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-18 15:31:19
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-04 14:27:49
+# LastEditTime : 2020-11-05 12:46:34
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/sparsity.py
 # Description  : 
 #-------------------------------------------# 
@@ -605,41 +605,43 @@ def find_pattern_by_similarity(raw_w, pattern_num, pattern_shape, sparsity, coo_
                 for i in range(0, p_num_x):
                     for j in range(0, p_num_y):
                         if remove_bitmap[i, j, k] == 1:
-                            score_map[i, j, k] = p_sum
+                            score_map[i, j, k] = coo_threshold + 1
                         else:
                             score_map[i, j, k] = (p * mask[i*stride[0]: i*stride[0] + pattern_shape[0]
                                                             , j*stride[1]: j*stride[1] + pattern_shape[1], k]).sum()
             score_max = score_map.max()
-            assert score_max <= p_sum, f"{score_max} {p} {p_sum}"
+            # assert score_max <= p_sum, f"{score_max} {p} {p_sum}"
 
             # remove the candidate score match the score threshold
             zeros = torch.zeros_like(remove_bitmap)
             ones = torch.ones_like(remove_bitmap)
             remove_bitmap_add = torch.where(score_map <= coo_threshold, ones, zeros)
             remove_bitmap = torch.where(remove_bitmap_add >= 1, ones, remove_bitmap)
-
+            
+            p = 1-p
             match_num = remove_bitmap_add.sum()
             print(p_cnt, idx_to_ijk[p_idx], ",current_pattern_nnz:", int(p.sum()), 
                                     ",output_max:", int(score_max), 
-                                    ",score:", int(match_num), 
+                                    ",match_num:", int(match_num), 
                                     ",removed:", int(remove_bitmap.sum()))
-            p = 1-p
             pattern_inner_nnz_dict[p.cpu().numpy().tostring()] = p.sum()
             pattern_match_num_dict[p.cpu().numpy().tostring()] = match_num
             pattern_coo_nnz_dict[p.cpu().numpy().tostring()] = (score_map * remove_bitmap_add).sum()
+
+            for k in range(raw_w.size(2)):
+                for i in range(0, p_num_x):
+                    for j in range(0, p_num_y):
+                        if remove_bitmap_add[i, j, k] == 1:
+                            nnz_num += mask[i*stride[0]: i*stride[0] + pattern_shape[0]
+                                                            , j*stride[1]: j*stride[1] + pattern_shape[1], k].sum()
+
+            pattern_nnz_dict[p.cpu().numpy().tostring()] = nnz_num
         else:
             pass
-        for k in range(raw_w.size(2)):
-            for i in range(0, p_num_x):
-                for j in range(0, p_num_y):
-                    if remove_bitmap_add[i, j, k] == 1:
-                        nnz_num += mask[i*stride[0]: i*stride[0] + pattern_shape[0]
-                                                        , j*stride[1]: j*stride[1] + pattern_shape[1], k].sum()
 
-        pattern_nnz_dict[p.cpu().numpy().tostring()] = nnz_num
 
         # save more
-        if len(pattern_match_num_dict.keys()) >= 500 or int(remove_bitmap.sum()) == len(pattern_candidates):
+        if len(pattern_match_num_dict.keys()) >= 500:# or int(remove_bitmap.sum()) == len(pattern_candidates):
             break
     print(len(pattern_match_num_dict))
 
