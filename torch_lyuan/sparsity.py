@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-18 15:31:19
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-09 17:58:34
+# LastEditTime : 2020-11-09 19:11:20
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/sparsity.py
 # Description  : 
 #-------------------------------------------# 
@@ -908,6 +908,7 @@ def apply_patterns(raw_w, pattern_set):
     stride = pattern_shape
     p_num_x = (raw_w.size(0) - pattern_shape[0])//stride[0] + 1
     p_num_y = (raw_w.size(1) - pattern_shape[1])//stride[1] + 1
+    mask = torch.zeros_like(raw_w)
     for k in range(raw_w.size(2)):
         for i in range(0, p_num_x):
             for j in range(0, p_num_y):
@@ -918,10 +919,10 @@ def apply_patterns(raw_w, pattern_set):
                                     , j*stride[1]: j*stride[1] + pattern_shape[1], k]).sum()
                 selected_p_i = score.argmax()
                 # apply
-                raw_w[i*stride[0]: i*stride[0] + pattern_shape[0]
-                        , j*stride[1]: j*stride[1] + pattern_shape[1], k] *= pattern_set[selected_p_i]
+                mask[i*stride[0]: i*stride[0] + pattern_shape[0]
+                        , j*stride[1]: j*stride[1] + pattern_shape[1], k] = pattern_set[selected_p_i]
 
-    return raw_w
+    return mask
 
 # eg. math_comb(64, 2)
 def comb_num(n, m):
@@ -932,19 +933,21 @@ if __name__ == "__main__":
     pattern_shape = [16, 16]
     pattern_nnz = 2
     stride = pattern_shape
+    pattern_num = 16
 
     pattern_candidates = generate_complete_pattern_set(pattern_shape, pattern_nnz)
-    print(len(pattern_candidates))
+    # print(len(pattern_candidates))
     for i, p in enumerate(pattern_candidates):
         print("generating ", i, len(pattern_candidates))
         # print(p)
     raw_w = torch.rand((128, 128, 7))
 
-    pattern_set = find_top_k_by_similarity(raw_w, pattern_candidates, stride, 16)
+    pattern_set = find_top_k_by_similarity(raw_w, pattern_candidates, stride, pattern_num)
     for i, p in enumerate(pattern_set):
-        print(i, len(pattern_set))
+        print("top", i, len(pattern_set))
         print(p)
 
     print(raw_w.sum())
-    prun_w = apply_patterns(raw_w, pattern_set)
+    mask = apply_patterns(raw_w, pattern_set)
+    prun_w = mask * raw_w
     print(prun_w.sum())
