@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-18 15:31:19
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-09 17:51:19
+# LastEditTime : 2020-11-09 17:58:34
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/sparsity.py
 # Description  : 
 #-------------------------------------------# 
@@ -869,7 +869,7 @@ def generate_complete_pattern_set(pattern_shape, pattern_nnz):
     pattern_set = list()
     pattern_total_num = pattern_shape[0]*pattern_shape[1]
     pattern_set_len = comb_num(pattern_total_num, pattern_nnz)
-    assert pattern_set_len <= 100000, f"Pattern candidate set too big! {pattern_set_len}"
+    assert pattern_set_len <= 50000, f"Pattern candidate set too big! {pattern_set_len}"
 
     pattern_nnz_pos_list = list(combinations(range(pattern_total_num), pattern_nnz))
     for pattern_nnz_pos in pattern_nnz_pos_list:
@@ -894,7 +894,7 @@ def find_top_k_by_similarity(raw_w, pattern_set, stride, pattern_num):
                 for j in range(0, p_num_y):
                     score += (p * raw_w[i*stride[0]: i*stride[0] + pattern_shape[0]
                                     , j*stride[1]: j*stride[1] + pattern_shape[1], k]).sum()
-        print(score)
+        # print(score)
         pattern_score[p.cpu().numpy().tobytes()] = score
         
     patterns = sorted(zip(pattern_score.values(), pattern_score.keys()), reverse=True)[:pattern_num]
@@ -929,15 +929,15 @@ def comb_num(n, m):
 
 
 if __name__ == "__main__":
-    pattern_shape = [4, 4]
+    pattern_shape = [16, 16]
     pattern_nnz = 2
     stride = pattern_shape
 
     pattern_candidates = generate_complete_pattern_set(pattern_shape, pattern_nnz)
     print(len(pattern_candidates))
-    for p in pattern_candidates:
-        print(len(pattern_candidates))
-        print(p)
+    for i, p in enumerate(pattern_candidates):
+        print("generating ", i, len(pattern_candidates))
+        # print(p)
     raw_w = torch.rand((128, 128, 7))
 
     pattern_set = find_top_k_by_similarity(raw_w, pattern_candidates, stride, 16)
