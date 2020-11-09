@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-18 15:31:19
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-08 17:02:13
+# LastEditTime : 2020-11-09 17:51:19
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/sparsity.py
 # Description  : 
 #-------------------------------------------# 
@@ -16,7 +16,7 @@ import sys
 import config_train as cfg
 import math
 
-
+from itertools import combinations, permutations
 
 #----------------description----------------# 
 # description: prune the input model
@@ -482,7 +482,7 @@ def find_pattern_layer(raw_w, pattern_shape):
                                         oc_p * pattern_shape[1]:(oc_p+1) * pattern_shape[1], k]
                     zero = torch.zeros_like(part_w)
                     one = torch.ones_like(part_w)
-                    pattern = torch.where(part_w == 0, zero, one).cpu().numpy().tostring()
+                    pattern = torch.where(part_w == 0, zero, one).cpu().numpy().tobytes()
                     # pattern.squeeze(dim=0)
                     if part_w.size(0) == pattern_shape[0] and part_w.size(1) == pattern_shape[1]:
                         if pattern not in patterns.keys():
@@ -626,9 +626,9 @@ def find_pattern_by_similarity(raw_w, pattern_num, pattern_shape, sparsity, coo_
                                     ",output_max:", int(score_max), 
                                     ",match_num:", int(match_num), 
                                     ",removed:", int(remove_bitmap.sum()))
-            pattern_inner_nnz_dict[p.cpu().numpy().tostring()] = p.sum()
-            pattern_match_num_dict[p.cpu().numpy().tostring()] = match_num
-            pattern_coo_nnz_dict[p.cpu().numpy().tostring()] = (score_map * remove_bitmap_add).sum()
+            pattern_inner_nnz_dict[p.cpu().numpy().tobytes()] = p.sum()
+            pattern_match_num_dict[p.cpu().numpy().tobytes()] = match_num
+            pattern_coo_nnz_dict[p.cpu().numpy().tobytes()] = (score_map * remove_bitmap_add).sum()
 
             for k in range(raw_w.size(2)):
                 for i in range(0, p_num_x):
@@ -637,7 +637,7 @@ def find_pattern_by_similarity(raw_w, pattern_num, pattern_shape, sparsity, coo_
                             nnz_num += mask[i*stride[0]: i*stride[0] + pattern_shape[0]
                                                             , j*stride[1]: j*stride[1] + pattern_shape[1], k].sum()
 
-            pattern_nnz_dict[p.cpu().numpy().tostring()] = nnz_num
+            pattern_nnz_dict[p.cpu().numpy().tobytes()] = nnz_num
         else:
             pass
 
@@ -836,7 +836,7 @@ def sort_pattern_candidates(pattern_candidates):
 #                                     ",output_max:", int(score_max), 
 #                                     ",score:", int(match_num), 
 #                                     ",removed:", int(remove_bitmap.sum()))
-#             pattern_match_num_dict[p.cpu().numpy().tostring()] = match_num
+#             pattern_match_num_dict[p.cpu().numpy().tobytes()] = match_num
 #         else:
 #             pass
         
@@ -863,3 +863,88 @@ def sort_pattern_candidates(pattern_candidates):
 #     # exit()
 #     return patterns, pattern_match_num_dict, pattern_match_nnz_dict
     
+
+
+def generate_complete_pattern_set(pattern_shape, pattern_nnz):
+    pattern_set = list()
+    pattern_total_num = pattern_shape[0]*pattern_shape[1]
+    pattern_set_len = comb_num(pattern_total_num, pattern_nnz)
+    assert pattern_set_len <= 100000, f"Pattern candidate set too big! {pattern_set_len}"
+
+    pattern_nnz_pos_list = list(combinations(range(pattern_total_num), pattern_nnz))
+    for pattern_nnz_pos in pattern_nnz_pos_list:
+        pattern = torch.zeros((pattern_shape[0], pattern_shape[1]))
+        for nnz_idx in pattern_nnz_pos:
+            ic = nnz_idx // pattern_shape[0]
+            oc = nnz_idx % pattern_shape[0]
+            pattern[ic, oc] = 1
+        pattern_set.append(pattern)
+
+    return pattern_set
+
+def find_top_k_by_similarity(raw_w, pattern_set, stride, pattern_num):
+    pattern_shape = [pattern_set[0].size(0), pattern_set[0].size(1)]
+    p_num_x = (raw_w.size(0) - pattern_shape[0])//stride[0] + 1
+    p_num_y = (raw_w.size(1) - pattern_shape[1])//stride[1] + 1
+    pattern_score = dict()
+    for p in pattern_set:
+        score = 0
+        for k in range(raw_w.size(2)):
+            for i in range(0, p_num_x):
+                for j in range(0, p_num_y):
+                    score += (p * raw_w[i*stride[0]: i*stride[0] + pattern_shape[0]
+                                    , j*stride[1]: j*stride[1] + pattern_shape[1], k]).sum()
+        print(score)
+        pattern_score[p.cpu().numpy().tobytes()] = score
+        
+    patterns = sorted(zip(pattern_score.values(), pattern_score.keys()), reverse=True)[:pattern_num]
+    pattern_set = [np.frombuffer(p[1], dtype=np.float32).reshape(pattern_shape) for p in patterns]
+    
+    return pattern_set
+    
+def apply_patterns(raw_w, pattern_set):
+    pattern_set = [torch.from_numpy(p) for p in pattern_set]
+    pattern_shape = [pattern_set[0].size(0), pattern_set[0].size(1)]
+    stride = pattern_shape
+    p_num_x = (raw_w.size(0) - pattern_shape[0])//stride[0] + 1
+    p_num_y = (raw_w.size(1) - pattern_shape[1])//stride[1] + 1
+    for k in range(raw_w.size(2)):
+        for i in range(0, p_num_x):
+            for j in range(0, p_num_y):
+                # find best pattern
+                score = np.zeros((len(pattern_set)))
+                for p_i, p in enumerate(pattern_set):
+                    score[p_i] = (p * raw_w[i*stride[0]: i*stride[0] + pattern_shape[0]
+                                    , j*stride[1]: j*stride[1] + pattern_shape[1], k]).sum()
+                selected_p_i = score.argmax()
+                # apply
+                raw_w[i*stride[0]: i*stride[0] + pattern_shape[0]
+                        , j*stride[1]: j*stride[1] + pattern_shape[1], k] *= pattern_set[selected_p_i]
+
+    return raw_w
+
+# eg. math_comb(64, 2)
+def comb_num(n, m):
+    return math.factorial(n)//(math.factorial(n-m)*math.factorial(m))
+
+
+if __name__ == "__main__":
+    pattern_shape = [4, 4]
+    pattern_nnz = 2
+    stride = pattern_shape
+
+    pattern_candidates = generate_complete_pattern_set(pattern_shape, pattern_nnz)
+    print(len(pattern_candidates))
+    for p in pattern_candidates:
+        print(len(pattern_candidates))
+        print(p)
+    raw_w = torch.rand((128, 128, 7))
+
+    pattern_set = find_top_k_by_similarity(raw_w, pattern_candidates, stride, 16)
+    for i, p in enumerate(pattern_set):
+        print(i, len(pattern_set))
+        print(p)
+
+    print(raw_w.sum())
+    prun_w = apply_patterns(raw_w, pattern_set)
+    print(prun_w.sum())
