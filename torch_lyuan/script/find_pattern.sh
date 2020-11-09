@@ -4,14 +4,14 @@
  # @Company      : Fudan University
  # @Date         : 2020-10-13 20:16:46
  # @LastEditors  : Zihao Zhao
- # @LastEditTime : 2020-11-05 11:55:39
+ # @LastEditTime : 2020-11-08 20:35:17
  # @FilePath     : /speech-to-text-wavenet/torch_lyuan/script/find_pattern.sh
  # @Description  : 
 ### 
 #!/usr/bin/env bash
 
 #/zhzhao/miniconda3/bin/conda init bash | conda activate pytorch16 | bash /zhzhao/code/wavenet_torch/torch_lyuan/script/find_pattern.sh
-exp_name="pruning_from_dense_color_5"
+exp_name="pruning_from_dense_color_10"
 excel_name=$exp_name".xls"
 model_name="/zhzhao/code/wavenet_torch/torch_lyuan/exp_result/best.pth"
 
@@ -30,7 +30,9 @@ sparsity_list=("0.05" \
                 "0.80" \
                 "0.85" \
                 "0.90" \
-                "0.95")
+                "0.95" \
+                "0.975" \
+                "0.9875")
 
 coonum_list=("1" \
             "2" \
@@ -59,12 +61,13 @@ coonum_list=("1" \
             "88" \
             "100")
 
-pattern_shape_list=("16_16" \
-                "8_8" \
+pattern_shape_list=("2_2" \
+                "3_3" \
                 "4_4" \
-                "4_8" \
-                "4_16" \
-                "8_16")
+                "6_6" \
+                "8_8" \
+                "12_12" \
+                "16_16")
 
 for pattern_shape in ${pattern_shape_list[*]}
 do

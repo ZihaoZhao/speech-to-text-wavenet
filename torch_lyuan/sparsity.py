@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-18 15:31:19
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-05 15:25:54
+# LastEditTime : 2020-11-08 17:02:13
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/sparsity.py
 # Description  : 
 #-------------------------------------------# 
@@ -589,6 +589,8 @@ def find_pattern_by_similarity(raw_w, pattern_num, pattern_shape, sparsity, coo_
 
     print("sorted: ", len(pattern_candidates))
     for p_cnt, p in enumerate(pattern_candidates):
+        if p.sum() < coo_threshold/2:
+            continue
         p = 1 - p
         p_sum = p.sum()
         nnz_num = 0
@@ -640,9 +642,10 @@ def find_pattern_by_similarity(raw_w, pattern_num, pattern_shape, sparsity, coo_
             pass
 
 
-        # save more
-        if len(pattern_match_num_dict.keys()) >= 500:# or int(remove_bitmap.sum()) == len(pattern_candidates):
-            break
+        # # save more
+    assert int(remove_bitmap.sum()) == len(pattern_candidates)
+        # if int(remove_bitmap.sum()) == len(pattern_candidates):
+        #     break
     print(len(pattern_match_num_dict))
 
 
@@ -686,7 +689,7 @@ def pattern_curve_analyse(raw_w_shape, pattern_shape, patterns, pattern_match_nu
     pattern_num_memory_dict = dict()
     pattern_num_cal_num_dict = dict()
     pattern_num_coo_nnz_dict = dict()
-    pattern_num_list = [1, 2, 4, 8, 12, 16, 24, 32, 48, 64, 96, 128, 256, 512]
+    pattern_num_list = [1, 2, 4, 8, 12, 16, 32, 64, 128, 256, 512]
     for pattern_num in pattern_num_list:
         if pattern_num >= len(patterns) * 2:
             break
@@ -696,10 +699,13 @@ def pattern_curve_analyse(raw_w_shape, pattern_shape, patterns, pattern_match_nu
             pattern_bit = 1
         else:
             pattern_bit = math.log(pattern_num, 2)
+            
         pattern_idx_bit_num = pattern_bit \
-                            * submatrix_num
-        coo_idx_num = (pattern_coo_nnz[:pattern_num].sum() \
-                            + pattern_nnz[pattern_num:].sum())
+                            * pattern_match_num[:pattern_num].sum()
+        # pattern_idx_bit_num = pattern_bit \
+        #                     * submatrix_num
+        coo_idx_num = pattern_coo_nnz[:pattern_num].sum() \
+                            + pattern_nnz[pattern_num:].sum()
         coo_idx_bit_num = (math.log(pattern_shape[0], 2) + math.log(pattern_shape[1], 2)) \
                             * coo_idx_num
         memory_cost = pattern_idx_bit_num + coo_idx_bit_num + pattern_bit_num
@@ -707,9 +713,9 @@ def pattern_curve_analyse(raw_w_shape, pattern_shape, patterns, pattern_match_nu
         cal_num = (pattern_match_num[:pattern_num] * pattern_inner_nnz[:pattern_num]).sum() \
                     + coo_idx_num
 
-        pattern_num_memory_dict[pattern_num] = memory_cost
-        pattern_num_cal_num_dict[pattern_num] = cal_num
-        pattern_num_coo_nnz_dict[pattern_num] = coo_idx_num
+        pattern_num_memory_dict[pattern_num] = memory_cost     #
+        pattern_num_cal_num_dict[pattern_num] = cal_num        # cal num
+        pattern_num_coo_nnz_dict[pattern_num] = coo_idx_num    # left coo
         
     # print(pattern_num_memory_dict)
     return pattern_num_memory_dict, pattern_num_cal_num_dict, pattern_num_coo_nnz_dict
@@ -734,126 +740,126 @@ def sort_pattern_candidates(pattern_candidates):
 
 
 
-#----------------description----------------# 
-# description: find pattern by similarity
-#                step 1: generate pattern candidates
-#                step 2: calculate the output score mask (remove patterns)
-#                step 3: return top-k patterns
-# param {*} raw_w
-# param {*} pattern_num
-# param {*} pattern_shape
-# param {*} zero_threshold
-# param {*} score_threshold
-# return {*}
-#-------------------------------------------# 
-def find_pattern_envelope_by_similarity(raw_w, pattern_num, pattern_shape, zero_threshold, score_threshold):
-    if raw_w.dim() == 2:
-        raw_w = raw_w.unsqueeze(2)
+# #----------------description----------------# 
+# # description: find pattern by similarity
+# #                step 1: generate pattern candidates
+# #                step 2: calculate the output score mask (remove patterns)
+# #                step 3: return top-k patterns
+# # param {*} raw_w
+# # param {*} pattern_num
+# # param {*} pattern_shape
+# # param {*} zero_threshold
+# # param {*} score_threshold
+# # return {*}
+# #-------------------------------------------# 
+# def find_pattern_envelope_by_similarity(raw_w, pattern_num, pattern_shape, zero_threshold, score_threshold):
+#     if raw_w.dim() == 2:
+#         raw_w = raw_w.unsqueeze(2)
 
-    # mask = torch.zeros_like(raw_w).cuda()
+#     # mask = torch.zeros_like(raw_w).cuda()
 
-    one = torch.ones_like(raw_w)
-    zero = torch.zeros_like(raw_w)
-    mask = torch.where(abs(raw_w) <= zero_threshold, zero, one).cuda()
+#     one = torch.ones_like(raw_w)
+#     zero = torch.zeros_like(raw_w)
+#     mask = torch.where(abs(raw_w) <= zero_threshold, zero, one).cuda()
 
-    # get pattern candidates
-    pattern_candidates = list()
-    idx_to_ijk = dict()
-    idx = 0
-    for k in range(raw_w.size(2)):
-        for i in range(raw_w.size(0) - pattern_shape[0] +1):
-            for j in range(raw_w.size(1) - pattern_shape[1] +1):
-                idx_to_ijk[idx] = [i, j, k]
-                # part_w = raw_w[i: i + pattern_shape[0],
-                #                 j: j + pattern_shape[1], k]
-                # one = torch.ones_like(part_w)
-                # zero = torch.zeros_like(part_w)
-                # pattern_candidate = torch.where(abs(part_w) <= zero_threshold, zero, one).cuda()
-                pattern_candidate = mask[i: i + pattern_shape[0], j: j + pattern_shape[1], k]
-                # mask[i: i + pattern_shape[0],
-                #     j: j + pattern_shape[1], k] = pattern_candidate
+#     # get pattern candidates
+#     pattern_candidates = list()
+#     idx_to_ijk = dict()
+#     idx = 0
+#     for k in range(raw_w.size(2)):
+#         for i in range(raw_w.size(0) - pattern_shape[0] +1):
+#             for j in range(raw_w.size(1) - pattern_shape[1] +1):
+#                 idx_to_ijk[idx] = [i, j, k]
+#                 # part_w = raw_w[i: i + pattern_shape[0],
+#                 #                 j: j + pattern_shape[1], k]
+#                 # one = torch.ones_like(part_w)
+#                 # zero = torch.zeros_like(part_w)
+#                 # pattern_candidate = torch.where(abs(part_w) <= zero_threshold, zero, one).cuda()
+#                 pattern_candidate = mask[i: i + pattern_shape[0], j: j + pattern_shape[1], k]
+#                 # mask[i: i + pattern_shape[0],
+#                 #     j: j + pattern_shape[1], k] = pattern_candidate
 
-                pattern_candidates.append(pattern_candidate)
-                idx += 1
+#                 pattern_candidates.append(pattern_candidate)
+#                 idx += 1
 
 
-    # output score maps
-    score_maps = list()
-    pattern_match_num_dict = dict()
-    pattern_match_nnz_dict = dict()
-    print(len(pattern_candidates))
-    pattern_candidates, pattern_sort_index = sort_pattern_candidates(pattern_candidates)
-    remove_bitmap = torch.zeros((raw_w.size(0) - pattern_shape[0] +1, raw_w.size(1) - pattern_shape[1] +1, raw_w.size(2)))
+#     # output score maps
+#     score_maps = list()
+#     pattern_match_num_dict = dict()
+#     pattern_match_nnz_dict = dict()
+#     print(len(pattern_candidates))
+#     pattern_candidates, pattern_sort_index = sort_pattern_candidates(pattern_candidates)
+#     remove_bitmap = torch.zeros((raw_w.size(0) - pattern_shape[0] +1, raw_w.size(1) - pattern_shape[1] +1, raw_w.size(2)))
     
-    print("sorted: ", len(pattern_candidates))
-    for p_num, p in enumerate(pattern_candidates):
-        p_idx = pattern_sort_index[p_num]
+#     print("sorted: ", len(pattern_candidates))
+#     for p_num, p in enumerate(pattern_candidates):
+#         p_idx = pattern_sort_index[p_num]
 
-        p_i = idx_to_ijk[p_idx][0]
-        p_j = idx_to_ijk[p_idx][1]
-        p_k = idx_to_ijk[p_idx][2]
+#         p_i = idx_to_ijk[p_idx][0]
+#         p_j = idx_to_ijk[p_idx][1]
+#         p_k = idx_to_ijk[p_idx][2]
 
-        # print(p_i, p_j, p_k)
-        if remove_bitmap[p_i, p_j, p_k] == 0:
-            score_map = torch.zeros((raw_w.size(0) - pattern_shape[0] +1, raw_w.size(1) - pattern_shape[1] +1, raw_w.size(2)))
+#         # print(p_i, p_j, p_k)
+#         if remove_bitmap[p_i, p_j, p_k] == 0:
+#             score_map = torch.zeros((raw_w.size(0) - pattern_shape[0] +1, raw_w.size(1) - pattern_shape[1] +1, raw_w.size(2)))
 
-            for k in range(raw_w.size(2)):
-                for i in range(raw_w.size(0) - pattern_shape[0] +1):
-                    for j in range(raw_w.size(1) - pattern_shape[1] +1):
-                        if remove_bitmap[i, j, k] == 1:
-                            score_map[i, j, k] = 0
-                        else:
-                            score_map[i, j, k] = (p * mask[i: i + pattern_shape[0], j: j + pattern_shape[1], k]).sum()
+#             for k in range(raw_w.size(2)):
+#                 for i in range(raw_w.size(0) - pattern_shape[0] +1):
+#                     for j in range(raw_w.size(1) - pattern_shape[1] +1):
+#                         if remove_bitmap[i, j, k] == 1:
+#                             score_map[i, j, k] = 0
+#                         else:
+#                             score_map[i, j, k] = (p * mask[i: i + pattern_shape[0], j: j + pattern_shape[1], k]).sum()
 
-                            # if i == p_i and j == p_j and k == p_k:
-                            #     # print(pattern_candidates[p_idx])
-                            #     print(p)
-                            #     print(mask[i: i + pattern_shape[0], j: j + pattern_shape[1], k])
-                            #     print((p * mask[i: i + pattern_shape[0], j: j + pattern_shape[1], k]).sum())
+#                             # if i == p_i and j == p_j and k == p_k:
+#                             #     # print(pattern_candidates[p_idx])
+#                             #     print(p)
+#                             #     print(mask[i: i + pattern_shape[0], j: j + pattern_shape[1], k])
+#                             #     print((p * mask[i: i + pattern_shape[0], j: j + pattern_shape[1], k]).sum())
                             
-            # score_maps.append(score_map)
-            score_max = score_map.max()
-            assert score_max <= p.sum(), f"{score_max} {p} {p.sum()}"
+#             # score_maps.append(score_map)
+#             score_max = score_map.max()
+#             assert score_max <= p.sum(), f"{score_max} {p} {p.sum()}"
 
-            # remove the candidate score match the score threshold
-            zeros = torch.zeros_like(remove_bitmap)
-            ones = torch.ones_like(remove_bitmap)
-            # print(remove_bitmap)
-            # print(score_max, score_threshold)
-            remove_bitmap_add = torch.where(score_map >= abs(score_max-score_threshold), ones, zeros)
-            # print(torch.nonzero(remove_bitmap_add))
-            remove_bitmap = torch.where(remove_bitmap_add >= 1, ones, remove_bitmap)
+#             # remove the candidate score match the score threshold
+#             zeros = torch.zeros_like(remove_bitmap)
+#             ones = torch.ones_like(remove_bitmap)
+#             # print(remove_bitmap)
+#             # print(score_max, score_threshold)
+#             remove_bitmap_add = torch.where(score_map >= abs(score_max-score_threshold), ones, zeros)
+#             # print(torch.nonzero(remove_bitmap_add))
+#             remove_bitmap = torch.where(remove_bitmap_add >= 1, ones, remove_bitmap)
 
-            # print(remove_bitmap)
-            match_num = remove_bitmap_add.sum()
-            print(p_num, idx_to_ijk[p_idx], ",current_pattern_nnz:", int(p.sum()), 
-                                    ",output_max:", int(score_max), 
-                                    ",score:", int(match_num), 
-                                    ",removed:", int(remove_bitmap.sum()))
-            pattern_match_num_dict[p.cpu().numpy().tostring()] = match_num
-        else:
-            pass
+#             # print(remove_bitmap)
+#             match_num = remove_bitmap_add.sum()
+#             print(p_num, idx_to_ijk[p_idx], ",current_pattern_nnz:", int(p.sum()), 
+#                                     ",output_max:", int(score_max), 
+#                                     ",score:", int(match_num), 
+#                                     ",removed:", int(remove_bitmap.sum()))
+#             pattern_match_num_dict[p.cpu().numpy().tostring()] = match_num
+#         else:
+#             pass
         
-        if len(pattern_match_num_dict.keys()) >= 200:
-            break
+#         if len(pattern_match_num_dict.keys()) >= 200:
+#             break
 
-    print(len(pattern_match_num_dict))
-    # if_save = False
-    # if if_save:
+#     print(len(pattern_match_num_dict))
+#     # if_save = False
+#     # if if_save:
         
 
 
-    # collect top-pattern_num patterns
-    if len(pattern_match_num_dict.items()) < pattern_num:
-        pattern_num = len(pattern_match_num_dict)
-    patterns = dict()
-    pattern_match_num_dict_sorted = sorted(pattern_match_num_dict, key = lambda k: k[pattern_num])
-    for p in pattern_match_num_dict_sorted:
-        score = pattern_match_num_dict[p]
-        patterns[p] = score
-        p = np.frombuffer(p, dtype=np.float32).reshape(pattern_shape)
-        # print(p, score)
+#     # collect top-pattern_num patterns
+#     if len(pattern_match_num_dict.items()) < pattern_num:
+#         pattern_num = len(pattern_match_num_dict)
+#     patterns = dict()
+#     pattern_match_num_dict_sorted = sorted(pattern_match_num_dict, key = lambda k: k[pattern_num])
+#     for p in pattern_match_num_dict_sorted:
+#         score = pattern_match_num_dict[p]
+#         patterns[p] = score
+#         p = np.frombuffer(p, dtype=np.float32).reshape(pattern_shape)
+#         # print(p, score)
 
-    # exit()
-    return patterns, pattern_match_num_dict, pattern_match_nnz_dict
+#     # exit()
+#     return patterns, pattern_match_num_dict, pattern_match_nnz_dict
     
