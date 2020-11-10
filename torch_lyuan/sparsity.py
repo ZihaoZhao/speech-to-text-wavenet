@@ -13,7 +13,7 @@ import numpy as np
 
 import torch
 import sys
-# import config_train as cfg
+import config_train as cfg
 import math
 import time
 
@@ -216,6 +216,25 @@ def pruning(model, sparse_mode='dense'):
             else:
                 a[name] = raw_w
 
+        model.load_state_dict(a)
+
+    elif sparse_mode == 'find_retrain':
+        name_list = list()
+        para_list = list()
+
+        for name, para in model.named_parameters():
+            name_list.append(name)
+            para_list.append(para)
+
+        a = model.state_dict()
+        zero_cnt = 0
+        all_cnt = 0
+        for i, name in enumerate(name_list):
+            raw_w = para_list[i]
+            w_num = torch.nonzero(raw_w).size(0)
+            mask = apply_patterns(raw_w, cfg.fd_rtn_pattern_set[name])
+            p_w = raw_w * mask
+            a[name] = p_w
         model.load_state_dict(a)
 
     else:
