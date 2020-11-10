@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-10 10:00:00
+# LastEditTime : 2020-11-10 10:44:56
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 0.001 0-5, 0.0001
 #-------------------------------------------# 
@@ -112,8 +112,9 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
                     raw_w = para_list[i]
                     if raw_w.size(0) == 128 and raw_w.size(1) == 128:
                         cfg.fd_rtn_pattern_set[name] = find_top_k_by_similarity(
-                                        raw_w, cfg.fd_rtn_pattern_candidates, stride, pattern_num)
-                                
+                                        raw_w, cfg.fd_rtn_pattern_candidates, cfg.pattern_shape, cfg.pattern_num)
+                    # else:
+                    #     cfg.fd_rtn_pattern_set[name] = [torch.ones(cfg.pattern_shape[0], cfg.pattern_shape[1])]
         _tp, _pred, _pos = 0, 0, 0
         for data in train_loader:
             # data = prefetcher.next()

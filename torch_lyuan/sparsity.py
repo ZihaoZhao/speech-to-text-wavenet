@@ -232,8 +232,11 @@ def pruning(model, sparse_mode='dense'):
         for i, name in enumerate(name_list):
             raw_w = para_list[i]
             w_num = torch.nonzero(raw_w).size(0)
-            mask = apply_patterns(raw_w, cfg.fd_rtn_pattern_set[name])
-            p_w = raw_w * mask
+            if name in cfg.fd_rtn_pattern_set.keys():
+                mask = apply_patterns(raw_w, cfg.fd_rtn_pattern_set[name])
+                p_w = raw_w * mask
+            else:
+                p_w = raw_w
             a[name] = p_w
         model.load_state_dict(a)
 
@@ -982,7 +985,7 @@ def apply_patterns(raw_w, pattern_set):
                 # apply
                 mask[i*stride[0]: i*stride[0] + pattern_shape[0], j*stride[1]
                     : j*stride[1] + pattern_shape[1], k] = pattern_set[selected_p_i]
-        mask = mask.squeeze(2)
+        # mask = mask.squeeze(2)
     return mask
 
 # eg. math_comb(64, 2)

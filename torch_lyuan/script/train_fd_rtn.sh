@@ -4,7 +4,7 @@
  # @Company      : Fudan University
  # @Date         : 2020-10-13 20:16:46
  # @LastEditors  : Zihao Zhao
- # @LastEditTime : 2020-11-10 10:15:04
+ # @LastEditTime : 2020-11-10 10:27:22
  # @FilePath     : /speech-to-text-wavenet/torch_lyuan/script/train_fd_rtn.sh
  # @Description  : 
 ### 
@@ -30,13 +30,13 @@ do
     do
         for pattern_shape in ${pattern_shape_list[*]}
         do
-            echo /zhzhao/miniconda3/envs/pytorch16/bin/python \
+            /zhzhao/miniconda3/envs/pytorch16/bin/python \
             /zhzhao/code/wavenet_torch/torch_lyuan/train.py \
             --exp "fd_rtn_"$pattern_num"_"$pattern_shape"_"$nnz \
             --load_from $model_name \
             --sparse_mode find_retrain \
             --find_retrain_para $pattern_num"_"$pattern_shape"_"$nnz \
-            --lr 0.001  --skip_exist  --save_excel find_retrain.xls
+            --lr 0.001  --save_excel find_retrain.xls
         done
     done
 done
