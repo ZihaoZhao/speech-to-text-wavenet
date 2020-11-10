@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-10 14:42:15
+# LastEditTime : 2020-11-10 14:50:18
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 0.001 0-5, 0.0001
 #-------------------------------------------# 
@@ -122,12 +122,12 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
             # data = prefetcher.next()
             wave = data['wave'].cuda()  # [1, 128, 109]
             if step_cnt % 10 == 0:
-                print("test1")
+                # print("test1")
                 model = pruning(model, cfg.sparse_mode)
-                print("test2")
+                # print("test2")
                 model.train() 
             if epoch == 0 and step_cnt == 0:
-                print("test3")
+                # print("test3")
                 loss_val = validate(val_loader, model, loss_fn)
                 writer.add_scalar('val/loss', loss_val, epoch)
                 best_loss = loss_val
@@ -138,7 +138,7 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
                 # f1, val_loss, tps, preds, poses = test_acc(val_loader, model, loss_fn)
                 # print(f1, val_loss, tps, preds, poses)
                 model.train()    
-                print("test4")
+                # print("test4")
 
             logits = model(wave)
             mask = torch.zeros_like(logits)

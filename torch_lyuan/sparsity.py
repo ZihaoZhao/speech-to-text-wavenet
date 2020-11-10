@@ -960,9 +960,10 @@ def find_top_k_by_similarity(raw_w, pattern_set, stride, pattern_num):
 
 def apply_patterns(raw_w, pattern_set):
     # pattern_set = [(torch.from_numpy(p)) for p in pattern_set]
+    # start_t = time.time()
     pattern_shape = [pattern_set[0].size(0), pattern_set[0].size(1)]
     stride = pattern_shape
-    p_num_x = (raw_w.size(0) - pattern_shape[0])//stride[0] + 1
+    p_num_x = (raw_w.size(0) - pattern_shape[0]) // stride[0] + 1
     p_num_y = (raw_w.size(1) - pattern_shape[1]) // stride[1] + 1
 
     if raw_w.device.type == 'cpu':
@@ -985,6 +986,7 @@ def apply_patterns(raw_w, pattern_set):
                 # apply
                 mask[i*stride[0]: i*stride[0] + pattern_shape[0], j*stride[1]
                     : j*stride[1] + pattern_shape[1], k] = pattern_set[selected_p_i]
+    print("apply one layer time==================", time.time() - start_t)
     if unsqueeze == True:
         mask = mask.squeeze(2)
     return mask
@@ -997,7 +999,7 @@ def comb_num(n, m):
 
 
 if __name__ == "__main__":
-    pattern_shape = [8, 8]
+    pattern_shape = [2, 2]
     pattern_nnz = 2
     stride = pattern_shape
     pattern_num = 16
@@ -1008,7 +1010,7 @@ if __name__ == "__main__":
     # for i, p in enumerate(pattern_candidates):
     #     print("generating ", i, len(pattern_candidates))
     # print(p)
-    raw_w = torch.rand((512, 512, 1)).cuda()
+    raw_w = torch.rand((128, 128, 7)).cuda()
 
     pattern_set = find_top_k_by_similarity(
         raw_w, pattern_candidates, stride, pattern_num)
