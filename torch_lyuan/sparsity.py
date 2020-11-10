@@ -230,16 +230,27 @@ def pruning(model, sparse_mode='dense'):
         a = model.state_dict()
         zero_cnt = 0
         all_cnt = 0
+        raw_w_list = list()
         for i, name in enumerate(name_list):
             raw_w = para_list[i]
-            w_num = torch.nonzero(raw_w).size(0)
-            print("pruning ", name)
-            if name in cfg.fd_rtn_pattern_set.keys():
-                mask = apply_patterns(raw_w, cfg.fd_rtn_pattern_set[name])
-                p_w = raw_w * mask
-            else:
-                p_w = raw_w
-            a[name] = p_w
+            if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+                if raw_w.size(0) == 128 and raw_w.size(1) == 128:
+                    raw_w_list.append(raw_w)
+
+        raw_w_chunk, batch_list = raw_w_list2raw_w_chunk(raw_w_list)
+        mask_chunk = apply_patterns_chunk(raw_w_chunk, batch_list, cfg.fd_rtn_pattern_set)
+        mask_list = mask_chunk2mask_list(mask_chunk, batch_list)
+
+        cnt = 0
+        for i, name in enumerate(name_list):
+            raw_w = para_list[i]
+            if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+                if raw_w.size(0) == 128 and raw_w.size(1) == 128:
+                    # print(cnt, len(raw_w_list), len(mask_list))
+                    p_w = raw_w_list[cnt] * mask_list[cnt]
+                    a[name] = p_w
+                    cnt += 1
+                    
         model.load_state_dict(a)
 
     else:
@@ -964,8 +975,67 @@ def find_top_k_by_similarity(raw_w, pattern_set, stride, pattern_num):
 
     return kernel
 
+def raw_w_list2raw_w_chunk(raw_w_list):
+    assert raw_w_list[0].size(0) == raw_w_list[0].size(1)
+    assert raw_w_list[0].size(0) == 128
+    raw_w_chunk = raw_w_list[0]
+    batch_list = list()
+    batch_list.append(raw_w_list[0].size(2))
+    for raw_w in raw_w_list[1:]:
+        raw_w_chunk = torch.cat([raw_w_chunk, raw_w], 2)
+        batch_list.append(raw_w.size(2))
+    # print(raw_w_chunk.size())
+    return raw_w_chunk, batch_list
+
+
+def apply_patterns_chunk(raw_w_chunk, batch_list, kernel):
+    # print(raw_w.size())
+    raw_w = torch.abs(raw_w_chunk)
+    start_t = time.time()
+    pattern_shape = [kernel.size(2), kernel.size(3)]
+    stride = (pattern_shape[0], pattern_shape[1])
+    p_num_x = (raw_w.size(0) - pattern_shape[0]) // stride[0] + 1
+    p_num_y = (raw_w.size(1) - pattern_shape[1]) // stride[1] + 1
+
+    if raw_w.device.type == 'cpu':
+        raw_w = raw_w.cuda()
+    unsqueeze = False
+    if raw_w.dim() == 2:
+        raw_w = raw_w.unsqueeze(2)
+        unsqueeze = True
+
+    mask = torch.zeros_like(raw_w).cuda()
+    raw_w = raw_w.permute(2, 0, 1)
+    
+    out = F.conv2d(raw_w.unsqueeze(1), kernel, stride=stride, padding=0)
+
+    for i, batch in enumerate(batch_list):
+        start = np.array(batch_list)[:i].sum()
+        # print(start, batch, raw_w.size(0))
+        idx = torch.argmax(out[start:start+batch], dim=1).squeeze(0)
+        if idx.dim() == 2:
+            idx = idx.unsqueeze(0)
+        for k in range(batch):
+            for i in range(0, p_num_x):
+                for j in range(0, p_num_y):
+                    mask[i*stride[0]: i*stride[0] + pattern_shape[0], j*stride[1]
+                        : j*stride[1] + pattern_shape[1], start+k] = kernel[idx[k][i][j], 0, :, :]
+
+    # print("apply one layer time==================", time.time() - start_t)
+    if unsqueeze == True:
+        mask = mask.squeeze(2)
+    return mask
+
+def mask_chunk2mask_list(mask_chunk, batch_list):
+    mask_list = list()
+    for i, batch in enumerate(batch_list):
+        start = np.array(batch_list)[:i].sum()
+        mask = mask_chunk[:, :, start:start+batch]
+        mask_list.append(mask)
+    return mask_list
 
 def apply_patterns(raw_w, kernel):
+    # print(raw_w.size())
     raw_w = torch.abs(raw_w)
     # pattern_set = [(torch.from_numpy(p)) for p in pattern_set]
     start_t = time.time()
@@ -984,15 +1054,23 @@ def apply_patterns(raw_w, kernel):
         unsqueeze = True
 
     mask = torch.zeros_like(raw_w).cuda()
-    for k in range(raw_w.size(2)):
-        out = F.conv2d(raw_w[:, :, k].unsqueeze(0).unsqueeze(0), kernel, stride=stride, padding=0)
-        idx = torch.argmax(out, dim=1).squeeze(0)
-        # print(out.size())
-        # print(idx.size())
+    raw_w = raw_w.permute(2, 0, 1)
+    
+    out = F.conv2d(raw_w.unsqueeze(1), kernel, stride=stride, padding=0)
+    idx = torch.argmax(out, dim=1).squeeze(0)
+    if idx.dim() == 2:
+        idx = idx.unsqueeze(0)
+    # print(out.size())
+    # print(idx.size())
+    for k in range(raw_w.size(0)):
         for i in range(0, p_num_x):
             for j in range(0, p_num_y):
+                # print(mask[i*stride[0]: i*stride[0] + pattern_shape[0], j*stride[1]
+                #     : j*stride[1] + pattern_shape[1], k].size())
+                # print(kernel[idx[i][j], k, :, :].size())
+                # print(k, i, j)
                 mask[i*stride[0]: i*stride[0] + pattern_shape[0], j*stride[1]
-                    : j*stride[1] + pattern_shape[1], k] = kernel[idx[i][j], 0, :, :]
+                    : j*stride[1] + pattern_shape[1], k] = kernel[idx[k][i][j], 0, :, :]
 
     # mask = torch.zeros_like(raw_w).cuda()
     # for k in range(raw_w.size(2)):
@@ -1009,14 +1087,13 @@ def apply_patterns(raw_w, kernel):
     #                 : j*stride[1] + pattern_shape[1], k] = pattern_set[selected_p_i]
 
 
-    print("apply one layer time==================", time.time() - start_t)
+    # print("apply one layer time==================", time.time() - start_t)
     if unsqueeze == True:
         mask = mask.squeeze(2)
     return mask
 
+
 # eg. math_comb(64, 2)
-
-
 def comb_num(n, m):
     return math.factorial(n)//(math.factorial(n-m)*math.factorial(m))
 
