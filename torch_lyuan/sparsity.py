@@ -963,7 +963,8 @@ def apply_patterns(raw_w, pattern_set):
                 # apply
                 mask[i*stride[0]: i*stride[0] + pattern_shape[0], j*stride[1]
                     : j*stride[1] + pattern_shape[1], k] = pattern_set[selected_p_i]
-                mask[i*stride[0]: i*stride[0] + pattern_shape[0], j*stride[1]                     : j*stride[1] + pattern_shape[1], k] = pattern_set[selected_p_i]
+                mask[i * stride[0]:i * stride[0] + pattern_shape[0], j * stride[1]
+                    : j*stride[1] + pattern_shape[1], k] = pattern_set[selected_p_i]
         mask = mask.squeeze(2)
     return mask
 
