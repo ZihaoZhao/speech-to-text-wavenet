@@ -941,6 +941,45 @@ def generate_complete_pattern_set(pattern_shape, pattern_nnz):
     return pattern_set
 
 
+# def find_top_k_by_similarity(raw_w, pattern_candidates, stride, pattern_num):
+#     pattern_shape = [pattern_candidates[0].size(0), pattern_candidates[0].size(1)]
+#     p_num_x = (raw_w.size(0) - pattern_shape[0])//stride[0] + 1
+#     p_num_y = (raw_w.size(1) - pattern_shape[1])//stride[1] + 1
+#     pattern_score = dict()
+#     raw_w = torch.abs(raw_w)
+#     if raw_w.device.type == 'cpu':
+#         raw_w = raw_w.cuda()
+#     if raw_w.dim() == 2:
+#         raw_w = raw_w.unsqueeze(2)
+#     # start_t = time.time()
+
+#     kernel_candidate = torch.zeros((len(pattern_candidates), raw_w.size(2), pattern_shape[0], pattern_shape[1])).cuda()
+#     for i in range(raw_w.size(2)):
+#         for p_i, p in enumerate(pattern_candidates):
+#             kernel_candidate[p_i, i, :, :] = pattern_candidates[p_i]
+
+#     # print(raw_w.unsqueeze(0).size())
+#     # print(kernel_candidate.size())
+#     raw_w = raw_w.permute(2, 0, 1)
+#     out = F.conv2d(raw_w.unsqueeze(0), kernel_candidate, stride=stride, padding=0)
+#     # print("out:", out.size())
+#     scores = out.sum(1).sum(1)
+#     for i, score in enumerate(scores):
+#         pattern_score[pattern_candidates[i].cpu().numpy().tobytes()] = score
+
+#     patterns = sorted(zip(pattern_score.values(),
+#                           pattern_score.keys()), reverse=True)[:pattern_num]
+#     pattern_set = [np.frombuffer(p[1], dtype=np.float32).reshape(
+#         pattern_shape) for p in patterns]
+#     pattern_set = [(torch.from_numpy(p)).cuda() for p in pattern_set]
+
+#     kernel = torch.zeros((len(pattern_set), 1, pattern_shape[0], pattern_shape[1])).cuda()
+#     for p_i, p in enumerate(pattern_set):
+#         kernel[p_i, 0, :, :] = pattern_set[p_i]
+
+#     return kernel
+
+
 def find_top_k_by_similarity(raw_w, pattern_set, stride, pattern_num):
     pattern_shape = [pattern_set[0].size(0), pattern_set[0].size(1)]
     p_num_x = (raw_w.size(0) - pattern_shape[0])//stride[0] + 1
@@ -974,6 +1013,7 @@ def find_top_k_by_similarity(raw_w, pattern_set, stride, pattern_num):
         kernel[p_i, 0, :, :] = pattern_set[p_i]
 
     return kernel
+
 
 def raw_w_list2raw_w_chunk(raw_w_list):
     assert raw_w_list[0].size(0) == raw_w_list[0].size(1)

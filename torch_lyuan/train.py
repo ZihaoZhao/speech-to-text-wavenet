@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-10 21:29:33
+# LastEditTime : 2020-11-10 22:38:10
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 0.001 0-5, 0.0001
 #-------------------------------------------# 
@@ -115,10 +115,11 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
                         if cnt == 0:
                             raw_w_all = raw_w
                         else:
-                            torch.cat([raw_w_all, raw_w], 2)
+                            raw_w_all = torch.cat([raw_w_all, raw_w], 2)
                         cnt += 1
             cfg.fd_rtn_pattern_set = find_top_k_by_similarity(
-                            raw_w_all, cfg.fd_rtn_pattern_candidates, cfg.pattern_shape, cfg.pattern_num)
+                            raw_w_all, cfg.fd_rtn_pattern_candidates, 
+                            (cfg.pattern_shape[0], cfg.pattern_shape[1]), cfg.pattern_num)
                     # print(name)
             print("find top_k pattern finish")
                     # else:
@@ -181,7 +182,7 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
                 writer.add_scalar('train/loss', _loss, epoch)
                 train_loss_list.append(float(_loss))
 
-            if step_cnt % int(120/cfg.batch_size) == 10:
+            if step_cnt % int(1200/cfg.batch_size) == 10:
                 print("Epoch", epoch,
                         ", train step", step_cnt, "/", len(train_loader),
                         ", loss: ", round(float(_loss.data/step_cnt), 5))
