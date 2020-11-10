@@ -12,6 +12,7 @@ import os
 import numpy as np
 
 import torch
+import torch.nn.functional as F
 import sys
 import config_train as cfg
 import math
@@ -232,6 +233,7 @@ def pruning(model, sparse_mode='dense'):
         for i, name in enumerate(name_list):
             raw_w = para_list[i]
             w_num = torch.nonzero(raw_w).size(0)
+            print("pruning ", name)
             if name in cfg.fd_rtn_pattern_set.keys():
                 mask = apply_patterns(raw_w, cfg.fd_rtn_pattern_set[name])
                 p_w = raw_w * mask
@@ -933,6 +935,7 @@ def find_top_k_by_similarity(raw_w, pattern_set, stride, pattern_num):
     p_num_x = (raw_w.size(0) - pattern_shape[0])//stride[0] + 1
     p_num_y = (raw_w.size(1) - pattern_shape[1])//stride[1] + 1
     pattern_score = dict()
+    raw_w = torch.abs(raw_w)
     if raw_w.device.type == 'cuda':
         raw_w = raw_w.cpu()
     if raw_w.dim() == 2:
@@ -955,14 +958,21 @@ def find_top_k_by_similarity(raw_w, pattern_set, stride, pattern_num):
         pattern_shape) for p in patterns]
     pattern_set = [(torch.from_numpy(p)).cuda() for p in pattern_set]
 
-    return pattern_set
+    kernel = torch.zeros((len(pattern_set), 1, pattern_shape[0], pattern_shape[1])).cuda()
+    for p_i, p in enumerate(pattern_set):
+        kernel[p_i, 0, :, :] = pattern_set[p_i]
+
+    return kernel
 
 
-def apply_patterns(raw_w, pattern_set):
+def apply_patterns(raw_w, kernel):
+    raw_w = torch.abs(raw_w)
     # pattern_set = [(torch.from_numpy(p)) for p in pattern_set]
-    # start_t = time.time()
-    pattern_shape = [pattern_set[0].size(0), pattern_set[0].size(1)]
-    stride = pattern_shape
+    start_t = time.time()
+    # pattern_shape = [pattern_set[0].size(0), pattern_set[0].size(1)]
+    pattern_shape = [kernel.size(2), kernel.size(3)]
+    stride = (pattern_shape[0], pattern_shape[1])
+    # print(pattern_shape)
     p_num_x = (raw_w.size(0) - pattern_shape[0]) // stride[0] + 1
     p_num_y = (raw_w.size(1) - pattern_shape[1]) // stride[1] + 1
 
@@ -975,17 +985,30 @@ def apply_patterns(raw_w, pattern_set):
 
     mask = torch.zeros_like(raw_w).cuda()
     for k in range(raw_w.size(2)):
+        out = F.conv2d(raw_w[:, :, k].unsqueeze(0).unsqueeze(0), kernel, stride=stride, padding=0)
+        idx = torch.argmax(out, dim=1).squeeze(0)
+        # print(out.size())
+        # print(idx.size())
         for i in range(0, p_num_x):
             for j in range(0, p_num_y):
-                # find best pattern
-                score = np.zeros((len(pattern_set)))
-                for p_i, p in enumerate(pattern_set):
-                    score[p_i] = (p * raw_w[i*stride[0]: i*stride[0] + pattern_shape[0],
-                                            j*stride[1]: j*stride[1] + pattern_shape[1], k]).sum()
-                selected_p_i = score.argmax()
-                # apply
                 mask[i*stride[0]: i*stride[0] + pattern_shape[0], j*stride[1]
-                    : j*stride[1] + pattern_shape[1], k] = pattern_set[selected_p_i]
+                    : j*stride[1] + pattern_shape[1], k] = kernel[idx[i][j], 0, :, :]
+
+    # mask = torch.zeros_like(raw_w).cuda()
+    # for k in range(raw_w.size(2)):
+    #     for i in range(0, p_num_x):
+    #         for j in range(0, p_num_y):
+    #             # find best pattern
+    #             score = np.zeros((len(pattern_set)))
+    #             for p_i, p in enumerate(pattern_set):
+    #                 score[p_i] = (p * raw_w[i*stride[0]: i*stride[0] + pattern_shape[0],
+    #                                         j*stride[1]: j*stride[1] + pattern_shape[1], k]).sum()
+    #             selected_p_i = score.argmax()
+    #             # apply
+    #             mask[i*stride[0]: i*stride[0] + pattern_shape[0], j*stride[1]
+    #                 : j*stride[1] + pattern_shape[1], k] = pattern_set[selected_p_i]
+
+
     print("apply one layer time==================", time.time() - start_t)
     if unsqueeze == True:
         mask = mask.squeeze(2)
@@ -999,7 +1022,7 @@ def comb_num(n, m):
 
 
 if __name__ == "__main__":
-    pattern_shape = [2, 2]
+    pattern_shape = [2, 4]
     pattern_nnz = 2
     stride = pattern_shape
     pattern_num = 16
@@ -1010,7 +1033,7 @@ if __name__ == "__main__":
     # for i, p in enumerate(pattern_candidates):
     #     print("generating ", i, len(pattern_candidates))
     # print(p)
-    raw_w = torch.rand((128, 128, 7)).cuda()
+    raw_w = torch.randn((128, 128, 7)).cuda()
 
     pattern_set = find_top_k_by_similarity(
         raw_w, pattern_candidates, stride, pattern_num)
@@ -1018,7 +1041,7 @@ if __name__ == "__main__":
         print("top", i, len(pattern_set))
         print(p)
 
-    print(raw_w.sum())
+    print(torch.abs(raw_w).sum())
     mask = apply_patterns(raw_w, pattern_set)
     prun_w = mask * raw_w
-    print(prun_w.sum())
+    print(torch.abs(prun_w).sum())
