@@ -920,8 +920,8 @@ def generate_complete_pattern_set(pattern_shape, pattern_nnz):
     for pattern_nnz_pos in pattern_nnz_pos_list:
         pattern = torch.zeros((pattern_shape[0], pattern_shape[1]))
         for nnz_idx in pattern_nnz_pos:
-            ic = nnz_idx // pattern_shape[0]
-            oc = nnz_idx % pattern_shape[0]
+            ic = nnz_idx % pattern_shape[0]
+            oc = nnz_idx // pattern_shape[0]
             pattern[ic, oc] = 1
         pattern_set.append(pattern)
 

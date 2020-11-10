@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-10 10:44:56
+# LastEditTime : 2020-11-10 14:42:15
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 0.001 0-5, 0.0001
 #-------------------------------------------# 
@@ -113,6 +113,8 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
                     if raw_w.size(0) == 128 and raw_w.size(1) == 128:
                         cfg.fd_rtn_pattern_set[name] = find_top_k_by_similarity(
                                         raw_w, cfg.fd_rtn_pattern_candidates, cfg.pattern_shape, cfg.pattern_num)
+                    # print(name)
+            print("find top_k pattern finish")
                     # else:
                     #     cfg.fd_rtn_pattern_set[name] = [torch.ones(cfg.pattern_shape[0], cfg.pattern_shape[1])]
         _tp, _pred, _pos = 0, 0, 0
@@ -120,9 +122,12 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
             # data = prefetcher.next()
             wave = data['wave'].cuda()  # [1, 128, 109]
             if step_cnt % 10 == 0:
+                print("test1")
                 model = pruning(model, cfg.sparse_mode)
+                print("test2")
                 model.train() 
             if epoch == 0 and step_cnt == 0:
+                print("test3")
                 loss_val = validate(val_loader, model, loss_fn)
                 writer.add_scalar('val/loss', loss_val, epoch)
                 best_loss = loss_val
@@ -133,14 +138,9 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
                 # f1, val_loss, tps, preds, poses = test_acc(val_loader, model, loss_fn)
                 # print(f1, val_loss, tps, preds, poses)
                 model.train()    
+                print("test4")
 
-            # wave = rnn_utils.pack_padded_sequence(wave, data['length_wave'], batch_first=True, enforce_sorted=False)
             logits = model(wave)
-            # logits, out_len = rnn_utils.pad_packed_sequence(logits, batch_first=True)
-            
-            # print(logits.size())
-            # print(data['length_wave'])
-            # exit()
             mask = torch.zeros_like(logits)
             for n in range(len(data['length_wave'])):
                 mask[:, :, :data['length_wave'][n]] = 1
@@ -148,17 +148,10 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
 
             logits = logits.permute(2, 0, 1)
             logits = F.log_softmax(logits, dim=2)
-            # print(logits[:, 0, :].max(1))
-            # for l in logits[:, 0, :].max(1)[1]:
-            #     print(vocabulary[l], end='')
-            # print(data['text'][0])
-            # logits = F.softmax(logits, dim=2)
             if data['text'].size(0) == cfg.batch_size:
                 for i in range(cfg.batch_size):
                     if i == 0:
                         text = data['text'][i][0:data['length_text'][i]].cuda()
-                        # print(data['text'].size())
-                        # print(data['length_text'][i])
                     else:
                         text = torch.cat([text, 
                                     data['text'][i][0: data['length_text'][i]].cuda()])
@@ -174,8 +167,6 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
             scheduler.zero_grad()
             loss.backward()
             scheduler.step()
-            # print(data['length_text'])
-            # print(data['length_text'].size().data)
             _loss += loss.data# * float(data['length_text'].float().mean())
 
 
@@ -183,7 +174,7 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
                 writer.add_scalar('train/loss', _loss, epoch)
                 train_loss_list.append(float(_loss))
 
-            if step_cnt % int(12000/cfg.batch_size) == 10:
+            if step_cnt % int(120/cfg.batch_size) == 10:
                 print("Epoch", epoch,
                         ", train step", step_cnt, "/", len(train_loader),
                         ", loss: ", round(float(_loss.data/step_cnt), 5))
