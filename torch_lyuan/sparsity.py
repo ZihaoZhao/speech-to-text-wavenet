@@ -230,36 +230,35 @@ def pruning(model, sparse_mode='dense'):
         a = model.state_dict()
         zero_cnt = 0
         all_cnt = 0
-        for i, name in enumerate(name_list):
-            raw_w = para_list[i]
-            if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
-                if raw_w.size(0) == 128 and raw_w.size(1) == 128:
-                    mask = apply_patterns(raw_w, cfg.fd_rtn_pattern_set[name])
-                    p_w = raw_w * mask
-                    a[name] = p_w
+        if cfg.layer_or_model_wise == "l":
+            for i, name in enumerate(name_list):
+                raw_w = para_list[i]
+                if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+                    if raw_w.size(0) == 128 and raw_w.size(1) == 128:
+                        mask = apply_patterns(raw_w, cfg.fd_rtn_pattern_set[name])
+                        p_w = raw_w * mask
+                        a[name] = p_w
+                    else:
+                        a[name] = raw_w
                 else:
                     a[name] = raw_w
-            else:
-                a[name] = raw_w
-        # for i, name in enumerate(name_list):
-        #     raw_w = para_list[i]
-        #     if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
-        #         if raw_w.size(0) == 128 and raw_w.size(1) == 128:
-        #             raw_w_list.append(raw_w)
 
-        # raw_w_chunk, batch_list = raw_w_list2raw_w_chunk(raw_w_list)
-        # mask_chunk = apply_patterns_chunk(raw_w_chunk, batch_list, cfg.fd_rtn_pattern_set)
-        # mask_list = mask_chunk2mask_list(mask_chunk, batch_list)
-
-        # cnt = 0
-        # for i, name in enumerate(name_list):
-        #     raw_w = para_list[i]
-        #     if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
-        #         if raw_w.size(0) == 128 and raw_w.size(1) == 128:
-        #             # print(cnt, len(raw_w_list), len(mask_list))
-        #             p_w = raw_w_list[cnt] * mask_list[cnt]
-        #             a[name] = p_w
-        #             cnt += 1
+        elif cfg.layer_or_model_wise == "m":
+            for i, name in enumerate(name_list):
+                raw_w = para_list[i]
+                if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+                    if raw_w.size(0) == 128 and raw_w.size(1) == 128:
+                        mask = apply_patterns(raw_w, cfg.fd_rtn_pattern_set['all'])
+                        # ones = torch.ones_like(mask)
+                        # zeros = torch.zeros_like(mask)
+                        # print(mask.sum())
+                        # print(torch.where(mask>1, ones, zeros).sum())
+                        p_w = raw_w * mask
+                        a[name] = p_w
+                    else:
+                        a[name] = raw_w
+                else:
+                    a[name] = raw_w
                     
         model.load_state_dict(a)
 
@@ -587,8 +586,9 @@ def cal_sparsity(model):
     for i, name in enumerate(name_list):
         w = para_list[i]
         if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
-            zero_cnt += w.flatten().size()[0] - torch.nonzero(w).size()[0]
-            all_cnt += w.flatten().size()[0]
+            if w.size(0) == 128 and w.size(1) == 128:
+                zero_cnt += w.flatten().size()[0] - torch.nonzero(w).size()[0]
+                all_cnt += w.flatten().size()[0]
 
     return zero_cnt/all_cnt
 

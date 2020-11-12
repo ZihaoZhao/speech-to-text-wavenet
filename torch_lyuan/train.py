@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-12 00:19:59
+# LastEditTime : 2020-11-12 08:55:16
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 0.001 0-5, 0.0001
 #-------------------------------------------# 
@@ -50,7 +50,7 @@ def parse_args():
     parser.add_argument('--pattern_para', type=str, help='[pt_num_pt_shape0_pt_shape1_nnz]', default='16_16_16_128')
     parser.add_argument('--coo_para', type=str, help='[pt_shape0, pt_shape1, nnz]', default='8_8_32')
     parser.add_argument('--ptcoo_para', type=str, help='[pt_num, pt_shape0, pt_shape1, pt_nnz, coo_nnz]', default='16_16_16_128_64')
-    parser.add_argument('--find_retrain_para', type=str, help='[pt_num, pt_shape0, pt_shape1, pt_nnz]', default='16_4_4_2')
+    parser.add_argument('--find_retrain_para', type=str, help='[pt_num, pt_shape0, pt_shape1, pt_nnz, l or m]', default='16_4_4_2_m')
 
     parser.add_argument('--batch_size', type=int, help='1, 16, 32', default=32)
     parser.add_argument('--lr', type=float, help='0.001 for tensorflow', default=0.001)
@@ -107,20 +107,36 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
             for name, para in model.named_parameters():
                 name_list.append(name)
                 para_list.append(para)
-            # cnt = 0
-            for i, name in enumerate(name_list):
-                if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
-                    raw_w = para_list[i]
-                    if raw_w.size(0) == 128 and raw_w.size(1) == 128:
-                        # if cnt == 0:
-                        #     raw_w_all = raw_w
-                        # else:
-                        #     raw_w_all = torch.cat([raw_w_all, raw_w], 2)
-                        # cnt += 1
-                        cfg.fd_rtn_pattern_set[name] = find_top_k_by_similarity(
-                            raw_w, cfg.fd_rtn_pattern_candidates, 
-                            (cfg.pattern_shape[0], cfg.pattern_shape[1]), cfg.pattern_num)
-                    # print(name)
+            cnt = 0
+            if cfg.layer_or_model_wise == "l":
+                for i, name in enumerate(name_list):
+                    if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+                        raw_w = para_list[i]
+                        if raw_w.size(0) == 128 and raw_w.size(1) == 128:
+                            # if cnt == 0:
+                            #     raw_w_all = raw_w
+                            # else:
+                            #     raw_w_all = torch.cat([raw_w_all, raw_w], 2)
+                            # cnt += 1
+                            cfg.fd_rtn_pattern_set[name] = find_top_k_by_similarity(
+                                raw_w, cfg.fd_rtn_pattern_candidates, 
+                                (cfg.pattern_shape[0], cfg.pattern_shape[1]), cfg.pattern_num)
+                        # print(name)
+            elif cfg.layer_or_model_wise == "m":
+                for i, name in enumerate(name_list):
+                    if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+                        raw_w = para_list[i]
+                        if raw_w.size(0) == 128 and raw_w.size(1) == 128:
+                            if cnt == 0:
+                                raw_w_all = raw_w
+                            else:
+                                raw_w_all = torch.cat([raw_w_all, raw_w], 2)
+                            cnt += 1
+                cfg.fd_rtn_pattern_set['all'] = find_top_k_by_similarity(
+                    raw_w_all, cfg.fd_rtn_pattern_candidates, 
+                    (cfg.pattern_shape[0], cfg.pattern_shape[1]), cfg.pattern_num)
+                        # print(name)
+
             print("find top_k pattern finish")
                     # else:
                     #     cfg.fd_rtn_pattern_set[name] = [torch.ones(cfg.pattern_shape[0], cfg.pattern_shape[1])]
@@ -559,6 +575,7 @@ def main():
         cfg.pattern_num   = int(args.find_retrain_para.split('_')[0])
         cfg.pattern_shape = [int(args.find_retrain_para.split('_')[1]), int(args.find_retrain_para.split('_')[2])]
         cfg.pattern_nnz   = int(args.find_retrain_para.split('_')[3])
+        cfg.layer_or_model_wise   = str(args.find_retrain_para.split('_')[4])
         cfg.fd_rtn_pattern_candidates = generate_complete_pattern_set(
                                         cfg.pattern_shape, cfg.pattern_nnz)
         print(f'find_retrain {cfg.pattern_num} [{cfg.pattern_shape[0]}, {cfg.pattern_shape[1]}] {cfg.pattern_nnz}')
