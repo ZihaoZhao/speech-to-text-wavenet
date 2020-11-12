@@ -230,26 +230,36 @@ def pruning(model, sparse_mode='dense'):
         a = model.state_dict()
         zero_cnt = 0
         all_cnt = 0
-        raw_w_list = list()
         for i, name in enumerate(name_list):
             raw_w = para_list[i]
             if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
                 if raw_w.size(0) == 128 and raw_w.size(1) == 128:
-                    raw_w_list.append(raw_w)
-
-        raw_w_chunk, batch_list = raw_w_list2raw_w_chunk(raw_w_list)
-        mask_chunk = apply_patterns_chunk(raw_w_chunk, batch_list, cfg.fd_rtn_pattern_set)
-        mask_list = mask_chunk2mask_list(mask_chunk, batch_list)
-
-        cnt = 0
-        for i, name in enumerate(name_list):
-            raw_w = para_list[i]
-            if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
-                if raw_w.size(0) == 128 and raw_w.size(1) == 128:
-                    # print(cnt, len(raw_w_list), len(mask_list))
-                    p_w = raw_w_list[cnt] * mask_list[cnt]
+                    mask = apply_patterns(raw_w, cfg.fd_rtn_pattern_set[name])
+                    p_w = raw_w * mask
                     a[name] = p_w
-                    cnt += 1
+                else:
+                    a[name] = raw_w
+            else:
+                a[name] = raw_w
+        # for i, name in enumerate(name_list):
+        #     raw_w = para_list[i]
+        #     if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+        #         if raw_w.size(0) == 128 and raw_w.size(1) == 128:
+        #             raw_w_list.append(raw_w)
+
+        # raw_w_chunk, batch_list = raw_w_list2raw_w_chunk(raw_w_list)
+        # mask_chunk = apply_patterns_chunk(raw_w_chunk, batch_list, cfg.fd_rtn_pattern_set)
+        # mask_list = mask_chunk2mask_list(mask_chunk, batch_list)
+
+        # cnt = 0
+        # for i, name in enumerate(name_list):
+        #     raw_w = para_list[i]
+        #     if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+        #         if raw_w.size(0) == 128 and raw_w.size(1) == 128:
+        #             # print(cnt, len(raw_w_list), len(mask_list))
+        #             p_w = raw_w_list[cnt] * mask_list[cnt]
+        #             a[name] = p_w
+        #             cnt += 1
                     
         model.load_state_dict(a)
 
@@ -1105,36 +1115,17 @@ def apply_patterns(raw_w, kernel):
     idx = torch.argmax(out, dim=1).squeeze(0)
     if idx.dim() == 2:
         idx = idx.unsqueeze(0)
-    # print(out.size())
-    # print(idx.size())
-    for k in range(raw_w.size(0)):
-        for i in range(0, p_num_x):
-            for j in range(0, p_num_y):
-                # print(mask[i*stride[0]: i*stride[0] + pattern_shape[0], j*stride[1]
-                #     : j*stride[1] + pattern_shape[1], k].size())
-                # print(kernel[idx[i][j], k, :, :].size())
-                # print(k, i, j)
-                mask[i*stride[0]: i*stride[0] + pattern_shape[0], j*stride[1]
-                    : j*stride[1] + pattern_shape[1], k] = kernel[idx[k][i][j], 0, :, :]
 
-    # mask = torch.zeros_like(raw_w).cuda()
-    # for k in range(raw_w.size(2)):
-    #     for i in range(0, p_num_x):
-    #         for j in range(0, p_num_y):
-    #             # find best pattern
-    #             score = np.zeros((len(pattern_set)))
-    #             for p_i, p in enumerate(pattern_set):
-    #                 score[p_i] = (p * raw_w[i*stride[0]: i*stride[0] + pattern_shape[0],
-    #                                         j*stride[1]: j*stride[1] + pattern_shape[1], k]).sum()
-    #             selected_p_i = score.argmax()
-    #             # apply
-    #             mask[i*stride[0]: i*stride[0] + pattern_shape[0], j*stride[1]
-    #                 : j*stride[1] + pattern_shape[1], k] = pattern_set[selected_p_i]
-
-
+    out_max = torch.max(out, dim=1)[0].unsqueeze(1).repeat(1,kernel.size(0),1,1)
+    idx = torch.where(out >= out_max, torch.ones_like(out), torch.zeros_like(out))
+    mask = torch.nn.functional.conv_transpose2d(idx, kernel, 
+                bias=None, stride=stride, padding=0, output_padding=0, groups=1)
+    mask = mask.squeeze(1)
     # print("apply one layer time==================", time.time() - start_t)
     if unsqueeze == True:
         mask = mask.squeeze(2)
+    mask = mask.permute(1, 2, 0)
+    # exit()
     return mask
 
 
@@ -1144,6 +1135,15 @@ def comb_num(n, m):
 
 
 if __name__ == "__main__":
+
+    # input = torch.tensor([[1,0], [0,1]]).unsqueeze(0).unsqueeze(0)
+    # weight = torch.tensor([[[1,2], [3,4]]]).unsqueeze(0)
+    # print(input.size())
+    # print(weight.size())
+    # output = torch.nn.functional.conv_transpose2d(input, weight, 
+    #             bias=None, stride=2, padding=0, output_padding=0, groups=1)
+    # print(output)
+    # exit()
     pattern_shape = [2, 4]
     pattern_nnz = 2
     stride = pattern_shape
@@ -1165,5 +1165,6 @@ if __name__ == "__main__":
 
     print(torch.abs(raw_w).sum())
     mask = apply_patterns(raw_w, pattern_set)
+    # print(mask.size(), raw_w.size())
     prun_w = mask * raw_w
     print(torch.abs(prun_w).sum())
