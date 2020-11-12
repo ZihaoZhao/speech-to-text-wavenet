@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-12 08:55:16
+# LastEditTime : 2020-11-12 19:46:27
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 0.001 0-5, 0.0001
 #-------------------------------------------# 
@@ -107,35 +107,43 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
             for name, para in model.named_parameters():
                 name_list.append(name)
                 para_list.append(para)
-            cnt = 0
-            if cfg.layer_or_model_wise == "l":
-                for i, name in enumerate(name_list):
-                    if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
-                        raw_w = para_list[i]
-                        if raw_w.size(0) == 128 and raw_w.size(1) == 128:
-                            # if cnt == 0:
-                            #     raw_w_all = raw_w
-                            # else:
-                            #     raw_w_all = torch.cat([raw_w_all, raw_w], 2)
-                            # cnt += 1
-                            cfg.fd_rtn_pattern_set[name] = find_top_k_by_similarity(
-                                raw_w, cfg.fd_rtn_pattern_candidates, 
-                                (cfg.pattern_shape[0], cfg.pattern_shape[1]), cfg.pattern_num)
-                        # print(name)
-            elif cfg.layer_or_model_wise == "m":
-                for i, name in enumerate(name_list):
-                    if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
-                        raw_w = para_list[i]
-                        if raw_w.size(0) == 128 and raw_w.size(1) == 128:
-                            if cnt == 0:
-                                raw_w_all = raw_w
-                            else:
-                                raw_w_all = torch.cat([raw_w_all, raw_w], 2)
-                            cnt += 1
-                cfg.fd_rtn_pattern_set['all'] = find_top_k_by_similarity(
-                    raw_w_all, cfg.fd_rtn_pattern_candidates, 
-                    (cfg.pattern_shape[0], cfg.pattern_shape[1]), cfg.pattern_num)
-                        # print(name)
+                
+            for i, name in enumerate(name_list):
+                if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+                    raw_w = para_list[i]
+                    if raw_w.size(0) == 128 and raw_w.size(1) == 128:
+                        cfg.fd_rtn_pattern_set[name] = find_top_k_by_kmeans(
+                            raw_w, cfg.pattern_num, cfg.pattern_shape, cfg.pattern_nnz, stride=cfg.pattern_shape)
+
+            # cnt = 0
+            # if cfg.layer_or_model_wise == "l":
+            #     for i, name in enumerate(name_list):
+            #         if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+            #             raw_w = para_list[i]
+            #             if raw_w.size(0) == 128 and raw_w.size(1) == 128:
+            #                 # if cnt == 0:
+            #                 #     raw_w_all = raw_w
+            #                 # else:
+            #                 #     raw_w_all = torch.cat([raw_w_all, raw_w], 2)
+            #                 # cnt += 1
+            #                 cfg.fd_rtn_pattern_set[name] = find_top_k_by_similarity(
+            #                     raw_w, cfg.fd_rtn_pattern_candidates, 
+            #                     (cfg.pattern_shape[0], cfg.pattern_shape[1]), cfg.pattern_num)
+            #             # print(name)
+            # elif cfg.layer_or_model_wise == "m":
+            #     for i, name in enumerate(name_list):
+            #         if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+            #             raw_w = para_list[i]
+            #             if raw_w.size(0) == 128 and raw_w.size(1) == 128:
+            #                 if cnt == 0:
+            #                     raw_w_all = raw_w
+            #                 else:
+            #                     raw_w_all = torch.cat([raw_w_all, raw_w], 2)
+            #                 cnt += 1
+            #     cfg.fd_rtn_pattern_set['all'] = find_top_k_by_similarity(
+            #         raw_w_all, cfg.fd_rtn_pattern_candidates, 
+            #         (cfg.pattern_shape[0], cfg.pattern_shape[1]), cfg.pattern_num)
+            #             # print(name)
 
             print("find top_k pattern finish")
                     # else:
@@ -282,7 +290,7 @@ def validate(val_loader, model, loss_fn):
             wave = data['wave'].cuda()  # [1, 128, 109]
             logits = model(wave)
             logits = logits.permute(2, 0, 1)
-            logits = F.log_softmax(logits, dim=2)
+            logits = F.log_softmax(logits + 1e-10, dim=2)
             if data['text'].size(0) == cfg.batch_size:
                 for i in range(cfg.batch_size):
                     if i == 0:
@@ -576,8 +584,8 @@ def main():
         cfg.pattern_shape = [int(args.find_retrain_para.split('_')[1]), int(args.find_retrain_para.split('_')[2])]
         cfg.pattern_nnz   = int(args.find_retrain_para.split('_')[3])
         cfg.layer_or_model_wise   = str(args.find_retrain_para.split('_')[4])
-        cfg.fd_rtn_pattern_candidates = generate_complete_pattern_set(
-                                        cfg.pattern_shape, cfg.pattern_nnz)
+        # cfg.fd_rtn_pattern_candidates = generate_complete_pattern_set(
+        #                                 cfg.pattern_shape, cfg.pattern_nnz)
         print(f'find_retrain {cfg.pattern_num} [{cfg.pattern_shape[0]}, {cfg.pattern_shape[1]}] {cfg.pattern_nnz}')
 
 

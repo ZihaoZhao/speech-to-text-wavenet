@@ -17,6 +17,8 @@ import sys
 import config_train as cfg
 import math
 import time
+from sklearn.cluster import KMeans
+import scipy.sparse
 
 from itertools import combinations, permutations
 
@@ -994,40 +996,56 @@ def find_top_k_by_similarity(raw_w, pattern_candidates, stride, pattern_num):
 
     return kernel
 
+def find_top_k_by_kmeans(raw_w, pattern_num, pattern_shape, pattern_nnz, stride):
+    p_num_x = (raw_w.size(0) - pattern_shape[0])//stride[0] + 1
+    p_num_y = (raw_w.size(1) - pattern_shape[1])//stride[1] + 1
+    pattern_total_num = pattern_shape[0]*pattern_shape[1]
+    pattern_set_len = comb_num(pattern_total_num, pattern_nnz)
+    if pattern_set_len < pattern_num:
+        pattern_num = pattern_set_len
 
-# def find_top_k_by_similarity(raw_w, pattern_set, stride, pattern_num):
-#     pattern_shape = [pattern_set[0].size(0), pattern_set[0].size(1)]
-#     p_num_x = (raw_w.size(0) - pattern_shape[0])//stride[0] + 1
-#     p_num_y = (raw_w.size(1) - pattern_shape[1])//stride[1] + 1
-#     pattern_score = dict()
-#     raw_w = torch.abs(raw_w)
-#     if raw_w.device.type == 'cuda':
-#         raw_w = raw_w.cpu()
-#     if raw_w.dim() == 2:
-#         raw_w = raw_w.unsqueeze(2)
-#     # start_t = time.time()
-#     for p_i, p in enumerate(pattern_set):
-#         score = 0
-#         # print("find_top_k:", p_i, len(pattern_set))
-#         for k in range(raw_w.size(2)):
-#             for i in range(0, p_num_x):
-#                 for j in range(0, p_num_y):
-#                     score += (p * raw_w[i*stride[0]: i*stride[0] + pattern_shape[0],
-#                                         j*stride[1]: j*stride[1] + pattern_shape[1], k]).sum()
-#         pattern_score[p.cpu().numpy().tobytes()] = score
-#     # print("find_top_k_by_similarity time==================", time.time() - start_t)
+    raw_w = torch.abs(raw_w)
+    if raw_w.device.type == 'cuda':
+        raw_w = raw_w.cpu()
+    if raw_w.dim() == 2:
+        raw_w = raw_w.unsqueeze(2)
+    # start_t = time.time()
 
-#     patterns = sorted(zip(pattern_score.values(),
-#                           pattern_score.keys()), reverse=True)[:pattern_num]
-#     pattern_set = [np.frombuffer(p[1], dtype=np.float32).reshape(
-#         pattern_shape) for p in patterns]
-#     pattern_set = [(torch.from_numpy(p)).cuda() for p in pattern_set]
+    pattern_candidates = list()
+    for k in range(raw_w.size(2)):
+        for i in range(0, p_num_x):
+            for j in range(0, p_num_y):
+                sub_matrix = raw_w[i*stride[0]: i*stride[0] + pattern_shape[0],
+                                          j*stride[1]: j*stride[1] + pattern_shape[1], k]
+                value, _ = torch.topk(sub_matrix.abs().flatten(), pattern_nnz)
+                zero_threshold = value[-1]
 
-#     kernel = torch.zeros((len(pattern_set), 1, pattern_shape[0], pattern_shape[1])).cuda()
-#     for p_i, p in enumerate(pattern_set):
-#         kernel[p_i, 0, :, :] = pattern_set[p_i]
+                ones = torch.ones_like(sub_matrix)
+                zeros = torch.zeros_like(sub_matrix)
+                pattern_candidate = torch.where(abs(sub_matrix) < zero_threshold, zeros, ones)
+                pattern_candidates.append(pattern_candidate.numpy().flatten())
 
-#     return kernel
+    clf = KMeans(n_clusters=pattern_num)
+    clf.fit(pattern_candidates)  # 分组
+    
+    centers = clf.cluster_centers_ # 两组数据点的中心点
+
+    pattern_set = list()
+    for pattern in centers:
+        pattern = torch.from_numpy(pattern)
+        index = pattern.sort()[1][-pattern_nnz:]
+        pattern = torch.zeros_like(pattern)
+        for i in index:
+            pattern[i] = 1
+
+        pattern_set.append(pattern.reshape(pattern_shape[0], pattern_shape[1]))
+
+    kernel = torch.zeros((len(pattern_set), 1, pattern_shape[0], pattern_shape[1])).cuda()
+    for p_i, p in enumerate(pattern_set):
+        kernel[p_i, 0, :, :] = pattern_set[p_i]
+
+    return kernel
+
 
 
 def raw_w_list2raw_w_chunk(raw_w_list):
@@ -1130,6 +1148,14 @@ def apply_patterns(raw_w, kernel):
 def comb_num(n, m):
     return math.factorial(n)//(math.factorial(n-m)*math.factorial(m))
 
+def cal_csr_overhead(raw_w_shape, sparsity):
+    # raw_w = torch.flatten(raw_w, start_dim=1, end_dim=2).numpy()
+
+    scipy.random.seed(3)
+    raw_w = scipy.sparse.random(raw_w_shape[0], raw_w_shape[1]*raw_w_shape[2], 
+                        format='csr',density=1-sparsity, data_rvs=np.random.randn)
+    # scipy.sparse(raw_w)
+
 
 if __name__ == "__main__":
 
@@ -1141,27 +1167,29 @@ if __name__ == "__main__":
     #             bias=None, stride=2, padding=0, output_padding=0, groups=1)
     # print(output)
     # exit()
-    pattern_shape = [2, 4]
-    pattern_nnz = 2
+
+    np.random.seed(0)
+    weights = []
+    for i in range(9):
+        weights.append((np.random.rand(3,3)*10).round(decimals=1).flatten())
+
+    raw_w = np.random.rand(9,9)
+    for i in range(3):
+        for j in range(3):
+            raw_w[i*3:i*3+3,j*3:j*3+3] = weights[3*i+j].reshape(3,3)
+    raw_w = torch.from_numpy(raw_w).unsqueeze(2).cuda()
+
+    pattern_shape = [3, 3]
+    pattern_nnz = 3
     stride = pattern_shape
-    pattern_num = 16
+    pattern_num = 2
+    # raw_w = torch.randn((9, 9, 1)).cuda()
 
-    pattern_candidates = generate_complete_pattern_set(
-        pattern_shape, pattern_nnz)
-    # print(len(pattern_candidates))
-    # for i, p in enumerate(pattern_candidates):
-    #     print("generating ", i, len(pattern_candidates))
-    # print(p)
-    raw_w = torch.randn((128, 128, 7)).cuda()
-
-    pattern_set = find_top_k_by_similarity(
-        raw_w, pattern_candidates, stride, pattern_num)
-    for i, p in enumerate(pattern_set):
-        print("top", i, len(pattern_set))
-        print(p)
-
+    pattern_set = find_top_k_by_kmeans(raw_w, pattern_num, pattern_shape, pattern_nnz, stride)
+    print(pattern_set)
     print(torch.abs(raw_w).sum())
     mask = apply_patterns(raw_w, pattern_set)
     # print(mask.size(), raw_w.size())
     prun_w = mask * raw_w
     print(torch.abs(prun_w).sum())
+
