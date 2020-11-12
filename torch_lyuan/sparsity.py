@@ -1112,9 +1112,6 @@ def apply_patterns(raw_w, kernel):
     raw_w = raw_w.permute(2, 0, 1)
     
     out = F.conv2d(raw_w.unsqueeze(1), kernel, stride=stride, padding=0)
-    idx = torch.argmax(out, dim=1).squeeze(0)
-    if idx.dim() == 2:
-        idx = idx.unsqueeze(0)
 
     out_max = torch.max(out, dim=1)[0].unsqueeze(1).repeat(1,kernel.size(0),1,1)
     idx = torch.where(out >= out_max, torch.ones_like(out), torch.zeros_like(out))
