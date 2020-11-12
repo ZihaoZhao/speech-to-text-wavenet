@@ -1148,48 +1148,158 @@ def apply_patterns(raw_w, kernel):
 def comb_num(n, m):
     return math.factorial(n)//(math.factorial(n-m)*math.factorial(m))
 
+def cal_none_overhead(raw_w_shape, sparsity):
+    # raw_w = torch.flatten(raw_w, start_dim=1, end_dim=2).numpy()
+    col_num = raw_w_shape[0]
+    row_num = raw_w_shape[1] * raw_w_shape[2]
+    weight_bit = 8
+    return col_num * row_num * weight_bit
+
 def cal_csr_overhead(raw_w_shape, sparsity):
     # raw_w = torch.flatten(raw_w, start_dim=1, end_dim=2).numpy()
+    col_num = raw_w_shape[0]
+    row_num = raw_w_shape[1] * raw_w_shape[2]
+    weight_bit = 8
 
     scipy.random.seed(3)
     raw_w = scipy.sparse.random(raw_w_shape[0], raw_w_shape[1]*raw_w_shape[2], 
                         format='csr',density=1-sparsity, data_rvs=np.random.randn)
+    # print(raw_w.indices)
+    # print(raw_w.indptr)
+    # print(raw_w.data)
+
+    indics_overhead = len(raw_w.indices) * math.log(col_num, 2)
+    indptr_overhead = len(raw_w.indptr) * math.log(col_num * row_num * (1-sparsity), 2)
+    data_overhead   = len(raw_w.data) * weight_bit
+
+    return indics_overhead + indptr_overhead + data_overhead
+
+def cal_csc_overhead(raw_w_shape, sparsity):
+    # raw_w = torch.flatten(raw_w, start_dim=1, end_dim=2).numpy()
+    col_num = raw_w_shape[0]
+    row_num = raw_w_shape[1] * raw_w_shape[2]
+    weight_bit = 8
+
+    scipy.random.seed(3)
+    raw_w = scipy.sparse.random(raw_w_shape[0], raw_w_shape[1]*raw_w_shape[2], 
+                        format='csc',density=1-sparsity, data_rvs=np.random.randn)
+    # print(raw_w.indices)
+    # print(raw_w.indptr)
+    # print(raw_w.data)
     # scipy.sparse(raw_w)
+    indics_overhead = len(raw_w.indices) * math.log(row_num, 2)
+    indptr_overhead = len(raw_w.indptr) * math.log(col_num * row_num * (1-sparsity), 2)
+    data_overhead   = len(raw_w.data) * weight_bit
+
+    return indics_overhead + indptr_overhead + data_overhead
+
+def cal_coo_overhead(raw_w_shape, sparsity):
+    # raw_w = torch.flatten(raw_w, start_dim=1, end_dim=2).numpy()
+    col_num = raw_w_shape[0]
+    row_num = raw_w_shape[1] * raw_w_shape[2]
+    weight_bit = 8
+
+    scipy.random.seed(3)
+    raw_w = scipy.sparse.random(raw_w_shape[0], raw_w_shape[1]*raw_w_shape[2], 
+                        format='coo',density=1-sparsity, data_rvs=np.random.randn)
+    # print(len(raw_w.col))
+    # print(len(raw_w.row))
+    # print(len(raw_w.data))
+    # scipy.sparse(raw_w)
+    col_index_overhead = len(raw_w.col) * math.log(row_num, 2)
+    row_index_overhead = len(raw_w.row) * math.log(col_num, 2)
+    data_overhead  = len(raw_w.data) * weight_bit
+
+    return col_index_overhead + row_index_overhead + data_overhead
+
+def cal_rlc_overhead(raw_w_shape, sparsity, rlc_bit):
+    col_num = raw_w_shape[0]
+    row_num = raw_w_shape[1] * raw_w_shape[2]
+    weight_bit = 8
+
+    scipy.random.seed(3)
+    raw_w = scipy.sparse.random(raw_w_shape[0], raw_w_shape[1]*raw_w_shape[2], 
+                        format='csr',density=1-sparsity, data_rvs=np.random.randn).toarray()
+
+    run_length = 2 ** rlc_bit
+    run_overhead = 0
+    weight_overhead = 0
+    cnt = 0
+    for col in range(col_num):
+        for row in range(row_num):
+            if raw_w[col][row] == 0:
+                cnt += 1
+                if cnt >= run_length:
+                    cnt = 0
+                    weight_overhead += weight_bit
+                    run_overhead += rlc_bit
+            else:
+                cnt = 0
+                weight_overhead += weight_bit
+                run_overhead += rlc_bit
+
+    return run_overhead + weight_overhead
+
+def cal_bitmap_overhead(raw_w_shape, sparsity):
+    col_num = raw_w_shape[0]
+    row_num = raw_w_shape[1] * raw_w_shape[2]
+    weight_bit = 8
+
+    bitmap_overhead = col_num * row_num
+    weight_overhead = col_num * row_num * (1-sparsity) * weight_bit
+    return bitmap_overhead + weight_overhead
+
+def cal_pattern_overhead(raw_w_shape, sparsity, pattern_shape, pattern_num):
+    col_num = raw_w_shape[0]
+    row_num = raw_w_shape[1] * raw_w_shape[2]
+    weight_bit = 8
+
+    sub_matrix_num = (col_num * row_num) / (pattern_shape[0] * pattern_shape[1])
+    pattern_coo_coding = pattern_num * (pattern_shape[0] * pattern_shape[1]) * sparsity
+
+    pattern_coo_coding_overhead = pattern_coo_coding * (math.log(pattern_shape[0], 2) + math.log(pattern_shape[1], 2))
+    pattern_idx_overhead = sub_matrix_num * (math.log(pattern_shape[0], 2) + math.log(pattern_shape[1], 2))
+    weight_overhead = col_num * row_num * (1-sparsity) * weight_bit
+    return pattern_coo_coding_overhead + pattern_idx_overhead + weight_overhead
+
 
 
 if __name__ == "__main__":
+    # raw_w_shape = (128,128,7)
+    raw_w_shape = (1632,36548,1)
+    sparsity = 0.9
 
-    # input = torch.tensor([[1,0], [0,1]]).unsqueeze(0).unsqueeze(0)
-    # weight = torch.tensor([[[1,2], [3,4]]]).unsqueeze(0)
-    # print(input.size())
-    # print(weight.size())
-    # output = torch.nn.functional.conv_transpose2d(input, weight, 
-    #             bias=None, stride=2, padding=0, output_padding=0, groups=1)
-    # print(output)
-    # exit()
+    print("bitmap:", cal_bitmap_overhead(raw_w_shape, sparsity))
+    print("pattern:", cal_pattern_overhead(raw_w_shape, sparsity, [16,16], 16))
+    print("none:", cal_none_overhead(raw_w_shape, sparsity))
+    print("csr:", cal_csr_overhead(raw_w_shape, sparsity))
+    print("csc:", cal_csc_overhead(raw_w_shape, sparsity))
+    print("coo:", cal_coo_overhead(raw_w_shape, sparsity))
+    print("rcl4:", cal_rlc_overhead(raw_w_shape, sparsity, 4))
+    print("rcl2:", cal_rlc_overhead(raw_w_shape, sparsity, 2))
 
-    np.random.seed(0)
-    weights = []
-    for i in range(9):
-        weights.append((np.random.rand(3,3)*10).round(decimals=1).flatten())
+    # np.random.seed(0)
+    # weights = []
+    # for i in range(9):
+    #     weights.append((np.random.rand(3,3)*10).round(decimals=1).flatten())
 
-    raw_w = np.random.rand(9,9)
-    for i in range(3):
-        for j in range(3):
-            raw_w[i*3:i*3+3,j*3:j*3+3] = weights[3*i+j].reshape(3,3)
-    raw_w = torch.from_numpy(raw_w).unsqueeze(2).cuda()
+    # raw_w = np.random.rand(9,9)
+    # for i in range(3):
+    #     for j in range(3):
+    #         raw_w[i*3:i*3+3,j*3:j*3+3] = weights[3*i+j].reshape(3,3)
+    # raw_w = torch.from_numpy(raw_w).unsqueeze(2).cuda()
 
-    pattern_shape = [3, 3]
-    pattern_nnz = 3
-    stride = pattern_shape
-    pattern_num = 2
-    # raw_w = torch.randn((9, 9, 1)).cuda()
+    # pattern_shape = [3, 3]
+    # pattern_nnz = 3
+    # stride = pattern_shape
+    # pattern_num = 2
+    # # raw_w = torch.randn((9, 9, 1)).cuda()
 
-    pattern_set = find_top_k_by_kmeans(raw_w, pattern_num, pattern_shape, pattern_nnz, stride)
-    print(pattern_set)
-    print(torch.abs(raw_w).sum())
-    mask = apply_patterns(raw_w, pattern_set)
-    # print(mask.size(), raw_w.size())
-    prun_w = mask * raw_w
-    print(torch.abs(prun_w).sum())
+    # pattern_set = find_top_k_by_kmeans(raw_w, pattern_num, pattern_shape, pattern_nnz, stride)
+    # print(pattern_set)
+    # print(torch.abs(raw_w).sum())
+    # mask = apply_patterns(raw_w, pattern_set)
+    # # print(mask.size(), raw_w.size())
+    # prun_w = mask * raw_w
+    # print(torch.abs(prun_w).sum())
 
