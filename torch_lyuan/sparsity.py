@@ -1266,17 +1266,23 @@ def cal_pattern_overhead(raw_w_shape, sparsity, pattern_shape, pattern_num):
 
 if __name__ == "__main__":
     # raw_w_shape = (128,128,7)
-    raw_w_shape = (1632,36548,1)
-    sparsity = 0.9
+    # raw_w_shape = (1632,36548,1)
+    raw_w_shape = (128,128,7)
+    compression_rate = [1, 2, 4, 8, 16, 32, 64]
 
-    print("bitmap:", cal_bitmap_overhead(raw_w_shape, sparsity))
-    print("pattern:", cal_pattern_overhead(raw_w_shape, sparsity, [16,16], 16))
-    print("none:", cal_none_overhead(raw_w_shape, sparsity))
-    print("csr:", cal_csr_overhead(raw_w_shape, sparsity))
-    print("csc:", cal_csc_overhead(raw_w_shape, sparsity))
-    print("coo:", cal_coo_overhead(raw_w_shape, sparsity))
-    print("rcl4:", cal_rlc_overhead(raw_w_shape, sparsity, 4))
-    print("rcl2:", cal_rlc_overhead(raw_w_shape, sparsity, 2))
+    for r in compression_rate:
+        sparsity = 1 - 1 / r
+        overhead = cal_rlc_overhead(raw_w_shape, sparsity, 8)
+        print(r, overhead)
+
+    # print("bitmap:", cal_bitmap_overhead(raw_w_shape, sparsity))
+    # print("pattern:", cal_pattern_overhead(raw_w_shape, sparsity, [16,16], 16))
+    # print("none:", cal_none_overhead(raw_w_shape, sparsity))
+    # print("csr:", cal_csr_overhead(raw_w_shape, sparsity))
+    # print("csc:", cal_csc_overhead(raw_w_shape, sparsity))
+    # print("coo:", cal_coo_overhead(raw_w_shape, sparsity))
+    # print("rcl4:", cal_rlc_overhead(raw_w_shape, sparsity, 4))
+    # print("rcl2:", cal_rlc_overhead(raw_w_shape, sparsity, 2))
 
     # np.random.seed(0)
     # weights = []
