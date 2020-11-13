@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-12 19:46:27
+# LastEditTime : 2020-11-13 19:15:41
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 0.001 0-5, 0.0001
 #-------------------------------------------# 
@@ -100,6 +100,7 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         _loss = 0.0
         step_cnt = 0
         
+        print("find_pattern_start")
         if cfg.sparse_mode == 'find_retrain':
             cfg.fd_rtn_pattern_set = dict()
             name_list = list()
@@ -115,6 +116,8 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
                         cfg.fd_rtn_pattern_set[name] = find_top_k_by_kmeans(
                             raw_w, cfg.pattern_num, cfg.pattern_shape, cfg.pattern_nnz, stride=cfg.pattern_shape)
 
+                # print("find_pattern_end", name)
+            print("find_pattern_end")
             # cnt = 0
             # if cfg.layer_or_model_wise == "l":
             #     for i, name in enumerate(name_list):
@@ -256,6 +259,8 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
             not_better_cnt = 0
             torch.save(model.state_dict(), cfg.workdir+'/weights/best.pth')
             print("saved", cfg.workdir+'/weights/best.pth', not_better_cnt)
+            # torch.save(val_model.state_dict(), cfg.workdir+'/weights/best.pth')
+            # print("saved", cfg.workdir+'/weights/best.pth', not_better_cnt)
             best_loss = loss_val
         else:
             not_better_cnt += 1

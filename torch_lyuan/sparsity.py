@@ -998,6 +998,8 @@ def find_top_k_by_similarity(raw_w, pattern_candidates, stride, pattern_num):
     return kernel
 
 def find_top_k_by_kmeans(raw_w, pattern_num, pattern_shape, pattern_nnz, stride):
+
+    # torch.cuda.empty_cache()
     p_num_x = (raw_w.size(0) - pattern_shape[0])//stride[0] + 1
     p_num_y = (raw_w.size(1) - pattern_shape[1])//stride[1] + 1
     pattern_total_num = pattern_shape[0]*pattern_shape[1]
@@ -1028,14 +1030,21 @@ def find_top_k_by_kmeans(raw_w, pattern_num, pattern_shape, pattern_nnz, stride)
     
     # print(len(pattern_candidates))
     pattern_candidates = torch.tensor(np.array(pattern_candidates))
-    # print(pattern_candidates[0].size())
-    # print(pattern_candidates.size())
+    # print(pattern_candidates[0])
+    # print(pattern_candidates)
     # kmeans
     cluster_ids_x, cluster_centers = kmeans(
-        X=pattern_candidates, num_clusters=pattern_num, distance='euclidean', device=torch.device('cuda:0'), tqdm_flag=False
+        X=pattern_candidates, 
+        num_clusters=pattern_num, 
+        distance='euclidean', 
+        device=torch.device('cuda:0'), 
+        tqdm_flag=False
     )
 
+    # print(cluster_ids_x.size())
+    # print(cluster_centers.size())
     centers = cluster_centers # 两组数据点的中心点
+    # print(centers)
     # clf = KMeans(n_clusters=pattern_num)
     # clf.fit(pattern_candidates)  # 分组
     
@@ -1045,16 +1054,17 @@ def find_top_k_by_kmeans(raw_w, pattern_num, pattern_shape, pattern_nnz, stride)
     for pattern in centers:
         # pattern = torch.from_numpy(pattern)
         index = pattern.sort()[1][-pattern_nnz:]
+        # print(pattern)
         pattern = torch.zeros_like(pattern)
         for i in index:
             pattern[i] = 1
 
+        # print(pattern)
         pattern_set.append(pattern.reshape(pattern_shape[0], pattern_shape[1]))
 
     kernel = torch.zeros((len(pattern_set), 1, pattern_shape[0], pattern_shape[1])).cuda()
     for p_i, p in enumerate(pattern_set):
         kernel[p_i, 0, :, :] = pattern_set[p_i]
-
     return kernel
 
 
@@ -1306,10 +1316,10 @@ if __name__ == "__main__":
     #         raw_w[i*3:i*3+3,j*3:j*3+3] = weights[3*i+j].reshape(3,3)
     # raw_w = torch.from_numpy(raw_w).unsqueeze(2).cuda()
 
-    pattern_shape = [16, 16]
-    pattern_nnz = 16
+    pattern_shape = [2, 4]
+    pattern_nnz = 2
     stride = pattern_shape
-    pattern_num = 2
+    pattern_num = 16
     raw_w = torch.randn((128, 128, 7)).cuda()
 
     pattern_set = find_top_k_by_kmeans(raw_w, pattern_num, pattern_shape, pattern_nnz, stride)
