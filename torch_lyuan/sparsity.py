@@ -17,11 +17,138 @@ import sys
 import config_train as cfg
 import math
 import time
-from sklearn.cluster import KMeans
+from fast_pytorch_kmeans import KMeans
+
+# from sklearn.cluster import k_means
 # from kmeans_pytorch import kmeans
 import scipy.sparse
 
 from itertools import combinations, permutations
+from collections import defaultdict
+from random import uniform
+from math import sqrt
+
+
+
+# def point_avg(points):
+#     """
+#     Accepts a list of points, each with the same number of dimensions.
+#     NB. points can have more dimensions than 2
+    
+#     Returns a new point which is the center of all the points.
+#     """
+#     dimensions = len(points[0])
+
+#     new_center = []
+
+#     for dimension in range(dimensions):
+#         dim_sum = 0  # dimension sum
+#         for p in points:
+#             dim_sum += p[dimension]
+
+#         # average of each dimension
+#         new_center.append(dim_sum / float(len(points)))
+
+#     return new_center
+
+
+# def update_centers(data_set, assignments):
+#     """
+#     Accepts a dataset and a list of assignments; the indexes 
+#     of both lists correspond to each other.
+#     Compute the center for each of the assigned groups.
+#     Return `k` centers where `k` is the number of unique assignments.
+#     """
+#     new_means = defaultdict(list)
+#     centers = []
+#     for assignment, point in zip(assignments, data_set):
+#         new_means[assignment].append(point)
+        
+#     for points in new_means.values():
+#         centers.append(point_avg(points))
+
+#     return centers
+
+
+# def assign_points(data_points, centers):
+#     """
+#     Given a data set and a list of points betweeen other points,
+#     assign each point to an index that corresponds to the index
+#     of the center point on it's proximity to that point. 
+#     Return a an array of indexes of centers that correspond to
+#     an index in the data set; that is, if there are N points
+#     in `data_set` the list we return will have N elements. Also
+#     If there are Y points in `centers` there will be Y unique
+#     possible values within the returned list.
+#     """
+#     assignments = []
+#     for point in data_points:
+#         shortest = 0.0  # positive infinity
+#         shortest_index = 0
+#         for i in range(len(centers)):
+#             val = distance(point, centers[i])
+#             if val < shortest:
+#                 shortest = val
+#                 shortest_index = i
+#         assignments.append(shortest_index)
+#     return assignments
+
+
+# def distance(a, b):
+#     """
+#     """
+#     dimensions = len(a)
+    
+#     _sum = 0
+#     for dimension in range(dimensions):
+#         difference_sq = (a[dimension] - b[dimension]) ** 2
+#         _sum += difference_sq
+#     return sqrt(_sum)
+
+
+# def generate_k(data_set, k):
+#     """
+#     Given `data_set`, which is an array of arrays,
+#     find the minimum and maximum for each coordinate, a range.
+#     Generate `k` random points between the ranges.
+#     Return an array of the random points within the ranges.
+#     """
+#     centers = []
+#     dimensions = len(data_set[0])
+#     min_max = defaultdict(int)
+
+#     for point in data_set:
+#         for i in range(dimensions):
+#             val = point[i]
+#             min_key = 'min_%d' % i
+#             max_key = 'max_%d' % i
+#             if min_key not in min_max or val < min_max[min_key]:
+#                 min_max[min_key] = val
+#             if max_key not in min_max or val > min_max[max_key]:
+#                 min_max[max_key] = val
+
+#     for _k in range(k):
+#         rand_point = []
+#         for i in range(dimensions):
+#             min_val = min_max['min_%d' % i]
+#             max_val = min_max['max_%d' % i]
+            
+#             rand_point.append(uniform(min_val, max_val))
+
+#         centers.append(rand_point)
+
+#     return centers
+
+
+# def k_means(dataset, k):
+#     k_points = generate_k(dataset, k)
+#     assignments = assign_points(dataset, k_points)
+#     old_assignments = None
+#     while assignments != old_assignments:
+#         new_centers = update_centers(dataset, assignments)
+#         old_assignments = assignments
+#         assignments = assign_points(dataset, new_centers)
+#     return assignments, dataset
 
 #----------------description----------------#
 # description: prune the input model
@@ -1007,33 +1134,62 @@ def find_top_k_by_kmeans(raw_w, pattern_num, pattern_shape, pattern_nnz, stride)
         pattern_num = pattern_set_len
 
     raw_w = torch.abs(raw_w)
-    if raw_w.device.type == 'cuda':
-        raw_w = raw_w.cpu()
     if raw_w.dim() == 2:
         raw_w = raw_w.unsqueeze(2)
+    if raw_w.device.type == 'cuda':
+        raw_w = raw_w.cpu().detach().numpy()
+        
+    # print(f"find_top_k_by_kmeans 1.move to cpu cost===={time.time()-start_t} s. \
+    #     pattern_shape:{raw_w.shape},pattern_num:{pattern_num},pattern_nnz:{pattern_nnz}")
 
     pattern_candidates = list()
-    for k in range(raw_w.size(2)):
+    for k in range(raw_w.shape[2]):
         for i in range(0, p_num_x):
             for j in range(0, p_num_y):
-                sub_matrix = raw_w[i*stride[0]: i*stride[0] + pattern_shape[0],
-                                        j*stride[1]: j*stride[1] + pattern_shape[1], k]
-                value, _ = torch.topk(sub_matrix.abs().flatten(), pattern_nnz)
-                zero_threshold = value[-1]
+                # print(raw_w.shape)
+                # print(k,i,j,p_num_x, p_num_y)
+                # print(pattern_num, pattern_shape, pattern_nnz, stride)
+                # print(i*stride[0], i*stride[0] + pattern_shape[0],
+                                        #   j*stride[1], j*stride[1] + pattern_shape[1], k)
+                sub_matrix = np.abs(raw_w[i*stride[0]: i*stride[0] + pattern_shape[0],
+                                          j*stride[1]: j*stride[1] + pattern_shape[1], k]).flatten()
+                # print("sub_matrix:", sub_matrix.shape)
+                index = sub_matrix.argsort()[-pattern_nnz:]
+                pattern_candidate = np.zeros_like(sub_matrix)
+                for t in index:
+                    pattern_candidate[t] = 1
+                # value, _ = torch.topk(sub_matrix.abs().flatten(), pattern_nnz)
+                # zero_threshold = value[-1]
 
-                ones = torch.ones_like(sub_matrix)
-                zeros = torch.zeros_like(sub_matrix)
-                pattern_candidate = torch.where(abs(sub_matrix) < zero_threshold, zeros, ones)
-                pattern_candidates.append(pattern_candidate.numpy().flatten())
+                # ones = torch.ones_like(sub_matrix)
+                # zeros = torch.zeros_like(sub_matrix)
+                # pattern_candidate = torch.where(abs(sub_matrix) < zero_threshold, zeros, ones)
+                # print("pattern_candidate:", pattern_candidate.shape)
 
-    clf = KMeans(n_clusters=pattern_num)
-    clf.fit(pattern_candidates)  # 分组
+                pattern_candidates.append(pattern_candidate)
+    
+    pattern_candidates = torch.tensor(np.array(pattern_candidates))
+    # print(len(pattern_candidates))
+    # print(pattern_candidates[0].shape)
+    #     print(f"candidate_pattern length:{len(pattern_candidates)},pattern class{len(set(pattern_candidates))}")
+    # print(f"find_top_k_by_kmeans 2.pattern candidate cost===={time.time()-start_t} s. \
+    #     pattern_shape:{raw_w.shape},pattern_num:{pattern_num},pattern_nnz:{pattern_nnz}")
+    # centers, _, _, n = k_means(X=pattern_candidates, n_clusters=pattern_num, return_n_iter=True, max_iter=3)
+    
+    kmeans = KMeans(n_clusters=pattern_num, mode='euclidean', verbose=1)
+    labels = kmeans.fit_predict(pattern_candidates)
+    # print(kmeans.centroids.size())
+    # print(labels)
+    # print(f"find_top_k_by_kmeans 3. clustering cost====={time.time()-start_t} s. \
+    #     pattern_shape:{raw_w.shape},pattern_num:{pattern_num},pattern_nnz:{pattern_nnz}")
+    # # clf.fit(pattern_candidates)  # 分组
 
-    centers = clf.cluster_centers_ # 两组数据点的中心点
+    # centers = clf.cluster_centers_ # 两组数据点的中心点
 
     pattern_set = list()
-    for pattern in centers:
-        pattern = torch.from_numpy(pattern)
+    for pattern in kmeans.centroids:
+        # pattern = torch.from_numpy(pattern)
+        # print(pattern.size())
         index = pattern.sort()[1][-pattern_nnz:]
         pattern = torch.zeros_like(pattern)
         for i in index:
@@ -1044,10 +1200,9 @@ def find_top_k_by_kmeans(raw_w, pattern_num, pattern_shape, pattern_nnz, stride)
     kernel = torch.zeros((len(pattern_set), 1, pattern_shape[0], pattern_shape[1])).cuda()
     for p_i, p in enumerate(pattern_set):
         kernel[p_i, 0, :, :] = pattern_set[p_i]
-    print(f"find_top_k_by_kmeans cost=================={time.time()-start_t} s. \
-        pattern_shape:{raw_w.size()},pattern_num:{pattern_num},pattern_nnz:{pattern_nnz}")
+    # print(f"find_top_k_by_kmeans 3. clustering cost====={time.time()-start_t} s. \
+    #     pattern_shape:{raw_w.shape},pattern_num:{pattern_num},pattern_nnz:{pattern_nnz}")
     return kernel
-
 
 def raw_w_list2raw_w_chunk(raw_w_list):
     assert raw_w_list[0].size(0) == raw_w_list[0].size(1)
@@ -1264,8 +1419,41 @@ def cal_pattern_overhead(raw_w_shape, sparsity, pattern_shape, pattern_num):
     return pattern_coo_coding_overhead + pattern_idx_overhead + weight_overhead
 
 
+def coo_curve_layer(raw_w, mask, coo_percent):
+    p_w = raw_w * mask
+
+    mask_r = 1 - mask
+    coo_w = raw_w * mask_r
+
+    w_num = raw_w.abs().flatten()
+
+    value, _ = torch.topk(coo_w.abs().flatten(), w_num*coo_percent)
+    thre = abs(value[-1])
+    zeros = torch.zeros_like(raw_w)
+    coo_w = torch.where(abs(coo_w) < thre, zeros, raw_w)
+
+    p_w = p_w + coo_w
+    return p_w
+
 
 if __name__ == "__main__":
+    
+# import torch.nn as nn
+#     from torch.utils.data import DataLoader
+#     from dataset import VCTK
+#     import dataset
+#     from wavenet import WaveNet
+
+#     vctk_val = VCTK(cfg, 'val')
+#     val_loader = DataLoader(vctk_val, batch_size=cfg.batch_size, num_workers=8, shuffle=False, pin_memory=True)
+
+#     # build model
+#     model = WaveNet(num_classes=28, channels_in=20, dilations=[1,2,4,8,16])
+#     model = nn.DataParallel(model)
+#     model.cuda()
+
+#     validate(val_loader, model, loss_fn)
+
     # raw_w_shape = (128,128,7)
     # raw_w_shape = (1632,36548,1)
     # raw_w_shape = (128,128,7)
@@ -1296,11 +1484,11 @@ if __name__ == "__main__":
     #         raw_w[i*3:i*3+3,j*3:j*3+3] = weights[3*i+j].reshape(3,3)
     # raw_w = torch.from_numpy(raw_w).unsqueeze(2).cuda()
 
-    pattern_shape = [2, 4]
-    pattern_nnz = 2
+    pattern_shape = [8, 8]
+    pattern_nnz = 8
     stride = pattern_shape
     pattern_num = 16
-    raw_w = torch.randn((128, 128, 7)).cuda()
+    raw_w = torch.randn((512, 512, 1)).cuda()
 
     pattern_set = find_top_k_by_kmeans(raw_w, pattern_num, pattern_shape, pattern_nnz, stride)
     # print(pattern_set)
