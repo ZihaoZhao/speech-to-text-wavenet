@@ -17,7 +17,8 @@ import sys
 import config_train as cfg
 import math
 import time
-from sklearn.cluster import KMeans
+# from sklearn.cluster import KMeans
+from kmeans_pytorch import kmeans
 import scipy.sparse
 
 from itertools import combinations, permutations
@@ -1024,20 +1025,29 @@ def find_top_k_by_kmeans(raw_w, pattern_num, pattern_shape, pattern_nnz, stride)
                 zeros = torch.zeros_like(sub_matrix)
                 pattern_candidate = torch.where(abs(sub_matrix) < zero_threshold, zeros, ones)
                 pattern_candidates.append(pattern_candidate.numpy().flatten())
-
-    clf = KMeans(n_clusters=pattern_num)
-    clf.fit(pattern_candidates)  # 分组
     
-    centers = clf.cluster_centers_ # 两组数据点的中心点
+    pattern_candidates = torch.tensor(np.array(pattern_candidates))
+
+    # kmeans
+    cluster_ids_x, cluster_centers = kmeans(
+        X=pattern_candidates, num_clusters=pattern_num, distance='euclidean', device=torch.device('cuda:0')
+    )
+
+    centers = cluster_centers # 两组数据点的中心点
+    # clf = KMeans(n_clusters=pattern_num)
+    # clf.fit(pattern_candidates)  # 分组
+    
+    # centers = clf.cluster_centers_ # 两组数据点的中心点
 
     pattern_set = list()
     for pattern in centers:
-        pattern = torch.from_numpy(pattern)
+        # pattern = torch.from_numpy(pattern)
         index = pattern.sort()[1][-pattern_nnz:]
         pattern = torch.zeros_like(pattern)
         for i in index:
             pattern[i] = 1
 
+        print(pattern)
         pattern_set.append(pattern.reshape(pattern_shape[0], pattern_shape[1]))
 
     kernel = torch.zeros((len(pattern_set), 1, pattern_shape[0], pattern_shape[1])).cuda()
@@ -1267,13 +1277,13 @@ def cal_pattern_overhead(raw_w_shape, sparsity, pattern_shape, pattern_num):
 if __name__ == "__main__":
     # raw_w_shape = (128,128,7)
     # raw_w_shape = (1632,36548,1)
-    raw_w_shape = (128,128,7)
-    compression_rate = [1, 2, 4, 8, 16, 32, 64]
+    # raw_w_shape = (128,128,7)
+    # compression_rate = [1, 2, 4, 8, 16, 32, 64]
 
-    for r in compression_rate:
-        sparsity = 1 - 1 / r
-        overhead = cal_rlc_overhead(raw_w_shape, sparsity, 8)
-        print(r, overhead)
+    # for r in compression_rate:
+    #     sparsity = 1 - 1 / r
+    #     overhead = cal_rlc_overhead(raw_w_shape, sparsity, 8)
+    #     print(r, overhead)
 
     # print("bitmap:", cal_bitmap_overhead(raw_w_shape, sparsity))
     # print("pattern:", cal_pattern_overhead(raw_w_shape, sparsity, [16,16], 16))
@@ -1295,17 +1305,17 @@ if __name__ == "__main__":
     #         raw_w[i*3:i*3+3,j*3:j*3+3] = weights[3*i+j].reshape(3,3)
     # raw_w = torch.from_numpy(raw_w).unsqueeze(2).cuda()
 
-    # pattern_shape = [3, 3]
-    # pattern_nnz = 3
-    # stride = pattern_shape
-    # pattern_num = 2
-    # # raw_w = torch.randn((9, 9, 1)).cuda()
+    pattern_shape = [4, 4]
+    pattern_nnz = 3
+    stride = pattern_shape
+    pattern_num = 2
+    raw_w = torch.randn((1928, 512, 1)).cuda()
 
-    # pattern_set = find_top_k_by_kmeans(raw_w, pattern_num, pattern_shape, pattern_nnz, stride)
-    # print(pattern_set)
-    # print(torch.abs(raw_w).sum())
-    # mask = apply_patterns(raw_w, pattern_set)
-    # # print(mask.size(), raw_w.size())
-    # prun_w = mask * raw_w
-    # print(torch.abs(prun_w).sum())
+    pattern_set = find_top_k_by_kmeans(raw_w, pattern_num, pattern_shape, pattern_nnz, stride)
+    print(pattern_set)
+    print(torch.abs(raw_w).sum())
+    mask = apply_patterns(raw_w, pattern_set)
+    # print(mask.size(), raw_w.size())
+    prun_w = mask * raw_w
+    print(torch.abs(prun_w).sum())
 
