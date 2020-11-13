@@ -1026,11 +1026,13 @@ def find_top_k_by_kmeans(raw_w, pattern_num, pattern_shape, pattern_nnz, stride)
                 pattern_candidate = torch.where(abs(sub_matrix) < zero_threshold, zeros, ones)
                 pattern_candidates.append(pattern_candidate.numpy().flatten())
     
+    # print(len(pattern_candidates))
     pattern_candidates = torch.tensor(np.array(pattern_candidates))
-
+    # print(pattern_candidates[0].size())
+    # print(pattern_candidates.size())
     # kmeans
     cluster_ids_x, cluster_centers = kmeans(
-        X=pattern_candidates, num_clusters=pattern_num, distance='euclidean', device=torch.device('cuda:0')
+        X=pattern_candidates, num_clusters=pattern_num, distance='euclidean', device=torch.device('cuda:0'), tqdm_flag=False
     )
 
     centers = cluster_centers # 两组数据点的中心点
@@ -1047,7 +1049,6 @@ def find_top_k_by_kmeans(raw_w, pattern_num, pattern_shape, pattern_nnz, stride)
         for i in index:
             pattern[i] = 1
 
-        print(pattern)
         pattern_set.append(pattern.reshape(pattern_shape[0], pattern_shape[1]))
 
     kernel = torch.zeros((len(pattern_set), 1, pattern_shape[0], pattern_shape[1])).cuda()
@@ -1147,9 +1148,9 @@ def apply_patterns(raw_w, kernel):
                 bias=None, stride=stride, padding=0, output_padding=0, groups=1)
     mask = mask.squeeze(1)
     # print("apply one layer time==================", time.time() - start_t)
+    mask = mask.permute(1, 2, 0)
     if unsqueeze == True:
         mask = mask.squeeze(2)
-    mask = mask.permute(1, 2, 0)
     # exit()
     return mask
 
@@ -1305,17 +1306,17 @@ if __name__ == "__main__":
     #         raw_w[i*3:i*3+3,j*3:j*3+3] = weights[3*i+j].reshape(3,3)
     # raw_w = torch.from_numpy(raw_w).unsqueeze(2).cuda()
 
-    pattern_shape = [4, 4]
-    pattern_nnz = 3
+    pattern_shape = [16, 16]
+    pattern_nnz = 16
     stride = pattern_shape
     pattern_num = 2
-    raw_w = torch.randn((1928, 512, 1)).cuda()
+    raw_w = torch.randn((128, 128, 7)).cuda()
 
     pattern_set = find_top_k_by_kmeans(raw_w, pattern_num, pattern_shape, pattern_nnz, stride)
-    print(pattern_set)
+    # print(pattern_set)
     print(torch.abs(raw_w).sum())
     mask = apply_patterns(raw_w, pattern_set)
-    # print(mask.size(), raw_w.size())
+    print(mask.size(), raw_w.size())
     prun_w = mask * raw_w
     print(torch.abs(prun_w).sum())
 
