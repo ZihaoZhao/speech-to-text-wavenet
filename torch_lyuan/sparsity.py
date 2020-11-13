@@ -17,8 +17,8 @@ import sys
 import config_train as cfg
 import math
 import time
-# from sklearn.cluster import KMeans
-from kmeans_pytorch import kmeans
+from sklearn.cluster import KMeans
+# from kmeans_pytorch import kmeans
 import scipy.sparse
 
 from itertools import combinations, permutations
@@ -998,75 +998,54 @@ def find_top_k_by_similarity(raw_w, pattern_candidates, stride, pattern_num):
     return kernel
 
 def find_top_k_by_kmeans(raw_w, pattern_num, pattern_shape, pattern_nnz, stride):
+     p_num_x = (raw_w.size(0) - pattern_shape[0])//stride[0] + 1
+     p_num_y = (raw_w.size(1) - pattern_shape[1])//stride[1] + 1
+     pattern_total_num = pattern_shape[0]*pattern_shape[1]
+     pattern_set_len = comb_num(pattern_total_num, pattern_nnz)
+     if pattern_set_len < pattern_num:
+         pattern_num = pattern_set_len
 
-    # torch.cuda.empty_cache()
-    p_num_x = (raw_w.size(0) - pattern_shape[0])//stride[0] + 1
-    p_num_y = (raw_w.size(1) - pattern_shape[1])//stride[1] + 1
-    pattern_total_num = pattern_shape[0]*pattern_shape[1]
-    pattern_set_len = comb_num(pattern_total_num, pattern_nnz)
-    if pattern_set_len < pattern_num:
-        pattern_num = pattern_set_len
+     raw_w = torch.abs(raw_w)
+     if raw_w.device.type == 'cuda':
+         raw_w = raw_w.cpu()
+     if raw_w.dim() == 2:
+         raw_w = raw_w.unsqueeze(2)
+     # start_t = time.time()
 
-    raw_w = torch.abs(raw_w)
-    if raw_w.device.type == 'cuda':
-        raw_w = raw_w.cpu()
-    if raw_w.dim() == 2:
-        raw_w = raw_w.unsqueeze(2)
-    # start_t = time.time()
+     pattern_candidates = list()
+     for k in range(raw_w.size(2)):
+         for i in range(0, p_num_x):
+             for j in range(0, p_num_y):
+                 sub_matrix = raw_w[i*stride[0]: i*stride[0] + pattern_shape[0],
+                                           j*stride[1]: j*stride[1] + pattern_shape[1], k]
+                 value, _ = torch.topk(sub_matrix.abs().flatten(), pattern_nnz)
+                 zero_threshold = value[-1]
 
-    pattern_candidates = list()
-    for k in range(raw_w.size(2)):
-        for i in range(0, p_num_x):
-            for j in range(0, p_num_y):
-                sub_matrix = raw_w[i*stride[0]: i*stride[0] + pattern_shape[0],
-                                          j*stride[1]: j*stride[1] + pattern_shape[1], k]
-                value, _ = torch.topk(sub_matrix.abs().flatten(), pattern_nnz)
-                zero_threshold = value[-1]
+                 ones = torch.ones_like(sub_matrix)
+                 zeros = torch.zeros_like(sub_matrix)
+                 pattern_candidate = torch.where(abs(sub_matrix) < zero_threshold, zeros, ones)
+                 pattern_candidates.append(pattern_candidate.numpy().flatten())
 
-                ones = torch.ones_like(sub_matrix)
-                zeros = torch.zeros_like(sub_matrix)
-                pattern_candidate = torch.where(abs(sub_matrix) < zero_threshold, zeros, ones)
-                pattern_candidates.append(pattern_candidate.numpy().flatten())
-    
-    # print(len(pattern_candidates))
-    pattern_candidates = torch.tensor(np.array(pattern_candidates))
-    # print(pattern_candidates[0])
-    # print(pattern_candidates)
-    # kmeans
-    cluster_ids_x, cluster_centers = kmeans(
-        X=pattern_candidates, 
-        num_clusters=pattern_num, 
-        distance='euclidean', 
-        device=torch.device('cuda:0'), 
-        tqdm_flag=False
-    )
+     clf = KMeans(n_clusters=pattern_num)
+     clf.fit(pattern_candidates)  # 分组
 
-    # print(cluster_ids_x.size())
-    # print(cluster_centers.size())
-    centers = cluster_centers # 两组数据点的中心点
-    # print(centers)
-    # clf = KMeans(n_clusters=pattern_num)
-    # clf.fit(pattern_candidates)  # 分组
-    
-    # centers = clf.cluster_centers_ # 两组数据点的中心点
+     centers = clf.cluster_centers_ # 两组数据点的中心点
 
-    pattern_set = list()
-    for pattern in centers:
-        # pattern = torch.from_numpy(pattern)
-        index = pattern.sort()[1][-pattern_nnz:]
-        # print(pattern)
-        pattern = torch.zeros_like(pattern)
-        for i in index:
-            pattern[i] = 1
+     pattern_set = list()
+     for pattern in centers:
+         pattern = torch.from_numpy(pattern)
+         index = pattern.sort()[1][-pattern_nnz:]
+         pattern = torch.zeros_like(pattern)
+         for i in index:
+             pattern[i] = 1
 
-        # print(pattern)
-        pattern_set.append(pattern.reshape(pattern_shape[0], pattern_shape[1]))
+         pattern_set.append(pattern.reshape(pattern_shape[0], pattern_shape[1]))
 
-    kernel = torch.zeros((len(pattern_set), 1, pattern_shape[0], pattern_shape[1])).cuda()
-    for p_i, p in enumerate(pattern_set):
-        kernel[p_i, 0, :, :] = pattern_set[p_i]
-    return kernel
+     kernel = torch.zeros((len(pattern_set), 1, pattern_shape[0], pattern_shape[1])).cuda()
+     for p_i, p in enumerate(pattern_set):
+         kernel[p_i, 0, :, :] = pattern_set[p_i]
 
+     return kernel
 
 
 def raw_w_list2raw_w_chunk(raw_w_list):
