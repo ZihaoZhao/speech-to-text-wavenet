@@ -247,7 +247,7 @@ def pruning(model, sparse_mode='dense'):
                 raw_w = para_list[i]
                 if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
                     if raw_w.size(0) == 128 and raw_w.size(1) == 128:
-                        mask = apply_patterns(raw_w, cfg.fd_rtn_pattern_set[name], coo_num=cfg.coo_num, random=True)
+                        mask = apply_patterns(raw_w, cfg.fd_rtn_pattern_set[name], coo_num=cfg.coo_num)
                         p_w = raw_w * mask
                         a[name] = p_w
                     else:
@@ -1161,7 +1161,10 @@ def apply_patterns(raw_w, kernel, coo_num=0, random=False):
     # print(raw_w.size())
     if random == True:
         raw_w_a = torch.randn(raw_w.size()).cuda()
-    raw_w_a = torch.abs(raw_w_a)
+        raw_w_a = torch.abs(raw_w_a)
+    else:
+        raw_w_a = torch.abs(raw_w)
+    
     # pattern_set = [(torch.from_numpy(p)) for p in pattern_set]
     start_t = time.time()
     # pattern_shape = [pattern_set[0].size(0), pattern_set[0].size(1)]
