@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-14 01:42:51
+# LastEditTime : 2020-11-14 17:10:10
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 0.001 0-5, 0.0001
 #-------------------------------------------# 
@@ -50,7 +50,7 @@ def parse_args():
     parser.add_argument('--pattern_para', type=str, help='[pt_num_pt_shape0_pt_shape1_nnz]', default='16_16_16_128')
     parser.add_argument('--coo_para', type=str, help='[pt_shape0, pt_shape1, nnz]', default='8_8_32')
     parser.add_argument('--ptcoo_para', type=str, help='[pt_num, pt_shape0, pt_shape1, pt_nnz, coo_nnz]', default='16_16_16_128_64')
-    parser.add_argument('--find_retrain_para', type=str, help='[pt_num, pt_shape0, pt_shape1, pt_nnz, l or m]', default='16_4_4_2_m')
+    parser.add_argument('--find_retrain_para', type=str, help='[pt_num, pt_shape0, pt_shape1, pt_nnz, coo_num, l or m]', default='16_4_4_2_1_m')
 
     parser.add_argument('--batch_size', type=int, help='1, 16, 32', default=32)
     parser.add_argument('--lr', type=float, help='0.001 for tensorflow', default=0.001)
@@ -257,10 +257,8 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
 
         if loss_val < best_loss:
             not_better_cnt = 0
-            torch.save(model.state_dict(), cfg.workdir+'/weights/dense_best.pth')
-            print("saved", cfg.workdir+'/weights/dense_best.pth', not_better_cnt)
-            # torch.save(val_model.state_dict(), cfg.workdir+'/weights/pruned_best.pth')
-            # print("saved", cfg.workdir+'/weights/pruned_best.pth', not_better_cnt)
+            torch.save(model.state_dict(), cfg.workdir+f'/weights/best.pth')
+            print("saved", cfg.workdir+f'/weights/best.pth', not_better_cnt)
             best_loss = loss_val
         else:
             not_better_cnt += 1
@@ -327,7 +325,7 @@ def validate(val_loader, model, loss_fn):
             step_cnt += 1
             # if cnt % 10 == 0:
     print("Val step", step_cnt, "/", len(val_loader),
-            ", loss: ", round(float(_loss.data/step_cnt), 5))
+            ", loss: ", round(float(_loss.data/len(val_loader)), 5))
     # print("Val tp:", _tp, ",pred:", _pred, ",pos:", _pos, ",f1:", f1)
 
     return _loss/len(val_loader)
@@ -588,10 +586,11 @@ def main():
         cfg.pattern_num   = int(args.find_retrain_para.split('_')[0])
         cfg.pattern_shape = [int(args.find_retrain_para.split('_')[1]), int(args.find_retrain_para.split('_')[2])]
         cfg.pattern_nnz   = int(args.find_retrain_para.split('_')[3])
-        cfg.layer_or_model_wise   = str(args.find_retrain_para.split('_')[4])
+        cfg.coo_num       = int(args.find_retrain_para.split('_')[4])
+        cfg.layer_or_model_wise   = str(args.find_retrain_para.split('_')[5])
         # cfg.fd_rtn_pattern_candidates = generate_complete_pattern_set(
         #                                 cfg.pattern_shape, cfg.pattern_nnz)
-        print(f'find_retrain {cfg.pattern_num} [{cfg.pattern_shape[0]}, {cfg.pattern_shape[1]}] {cfg.pattern_nnz}')
+        print(f'find_retrain {cfg.pattern_num} [{cfg.pattern_shape[0]}, {cfg.pattern_shape[1]}] {cfg.pattern_nnz} {cfg.coo_num} {cfg.layer_or_model_wise}')
 
 
     if args.vis_mask == True:

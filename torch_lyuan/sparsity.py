@@ -367,7 +367,7 @@ def pruning(model, sparse_mode='dense'):
                 raw_w = para_list[i]
                 if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
                     if raw_w.size(0) == 128 and raw_w.size(1) == 128:
-                        mask = apply_patterns(raw_w, cfg.fd_rtn_pattern_set[name])
+                        mask = apply_patterns(raw_w, cfg.fd_rtn_pattern_set[name], coo_num=cfg.coo_num)
                         p_w = raw_w * mask
                         a[name] = p_w
                     else:
@@ -380,7 +380,7 @@ def pruning(model, sparse_mode='dense'):
                 raw_w = para_list[i]
                 if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
                     if raw_w.size(0) == 128 and raw_w.size(1) == 128:
-                        mask = apply_patterns(raw_w, cfg.fd_rtn_pattern_set['all'])
+                        mask = apply_patterns(raw_w, cfg.fd_rtn_pattern_set['all'], coo_num=cfg.coo_num)
                         # ones = torch.ones_like(mask)
                         # zeros = torch.zeros_like(mask)
                         # print(mask.sum())
@@ -1179,8 +1179,6 @@ def find_top_k_by_kmeans(raw_w, pattern_num, pattern_shape, pattern_nnz, stride)
     # centers, _, _, n = k_means(X=pattern_candidates, n_clusters=pattern_num, return_n_iter=True, max_iter=3)
     kmeans_lib = 'sklearn'
     if kmeans_lib == 'sklearn':
-        centers = sklearn.cluster._kmeans._k_init(X=pattern_candidates.numpy(), n_clusters=pattern_num,
-                                                x_squared_norms=None, random_state=None)
         clf = sklearn.cluster.KMeans(n_clusters=pattern_num)
         clf.fit(pattern_candidates)
         centers = clf.cluster_centers_
@@ -1198,7 +1196,8 @@ def find_top_k_by_kmeans(raw_w, pattern_num, pattern_shape, pattern_nnz, stride)
 
     pattern_set = list()
     for pattern in centers:
-        # pattern = torch.from_numpy(pattern)
+        if kmeans_lib == 'sklearn':
+            pattern = torch.from_numpy(pattern)
         # print(pattern.size())
         index = pattern.sort()[1][-pattern_nnz:]
         pattern = torch.zeros_like(pattern)
@@ -1273,7 +1272,7 @@ def mask_chunk2mask_list(mask_chunk, batch_list):
         mask_list.append(mask)
     return mask_list
 
-def apply_patterns(raw_w, kernel):
+def apply_patterns(raw_w, kernel, coo_num=0):
     # print(raw_w.size())
     raw_w = torch.abs(raw_w)
     # pattern_set = [(torch.from_numpy(p)) for p in pattern_set]
@@ -1293,6 +1292,7 @@ def apply_patterns(raw_w, kernel):
         unsqueeze = True
 
     mask = torch.zeros_like(raw_w).cuda()
+    # 7,128,128
     raw_w = raw_w.permute(2, 0, 1)
     
     out = F.conv2d(raw_w.unsqueeze(1), kernel, stride=stride, padding=0)
@@ -1303,7 +1303,25 @@ def apply_patterns(raw_w, kernel):
                 bias=None, stride=stride, padding=0, output_padding=0, groups=1)
     mask = mask.squeeze(1)
     # print("apply one layer time==================", time.time() - start_t)
+
+    # 128,128,7
     mask = mask.permute(1, 2, 0)
+
+    w_num = raw_w.size(0) * raw_w.size(1) * raw_w.size(2)
+    if coo_num != 0:
+        mask_r = 1 - mask
+        raw_w = raw_w.permute(1, 2, 0)
+        coo_w = raw_w * mask_r
+
+        value, _ = torch.topk(
+            coo_w.abs().flatten(), int(coo_num * w_num / (pattern_shape[0]*pattern_shape[1])))
+        thre = abs(value[-1])
+        zero = torch.zeros_like(coo_w)
+        one = torch.ones_like(coo_w)
+        coo_mask = torch.where(
+            abs(coo_w) < thre, zero, one)
+        mask += coo_mask
+
     if unsqueeze == True:
         mask = mask.squeeze(2)
     # exit()
@@ -1429,30 +1447,32 @@ def cal_pattern_overhead(raw_w_shape, sparsity, pattern_shape, pattern_num):
     return pattern_coo_coding_overhead + pattern_idx_overhead #+ weight_overhead
 
 
-def coo_curve_layer(raw_w, mask, coo_percent):
+def coo_reserve_layer(raw_w, mask, coo_percent):
     p_w = raw_w * mask
 
     mask_r = 1 - mask
     coo_w = raw_w * mask_r
 
-    w_num = raw_w.abs().flatten()
+    w_num = raw_w.abs().flatten().size()[0]
+    # print(w_num)
+    # print(coo_percent)
 
-    value, _ = torch.topk(coo_w.abs().flatten(), w_num*coo_percent)
+    value, _ = torch.topk(coo_w.abs().flatten(), int(w_num*coo_percent))
     thre = abs(value[-1])
     zeros = torch.zeros_like(raw_w)
     coo_w = torch.where(abs(coo_w) < thre, zeros, raw_w)
 
     p_w = p_w + coo_w
-    return p_w
 
 
-if __name__ == "__main__":
-    
+
     # import torch.nn as nn
     # from torch.utils.data import DataLoader
     # from dataset import VCTK
     # import dataset
     # from wavenet import WaveNet
+    # from train import validate
+    
 
     # vctk_val = VCTK(cfg, 'val')
     # val_loader = DataLoader(vctk_val, batch_size=cfg.batch_size, num_workers=8, shuffle=False, pin_memory=True)
@@ -1461,37 +1481,96 @@ if __name__ == "__main__":
     # model = WaveNet(num_classes=28, channels_in=20, dilations=[1,2,4,8,16])
     # model = nn.DataParallel(model)
     # model.cuda()
+    # model_p = WaveNet(num_classes=28, channels_in=20, dilations=[1,2,4,8,16])
+    # model_p = nn.DataParallel(model_p)
+    # model_p.cuda()
 
-#     validate(val_loader, model, loss_fn)
+    # model.load_state_dict(torch.load(
+    #     '/zhzhao/code/wavenet_torch/torch_lyuan/exp_result/fd_rtnl_16_8_8_24_l/debug/weights/dense_best.pth'), strict=True)
+    # model_p.load_state_dict(torch.load(
+    #     '/zhzhao/code/wavenet_torch/torch_lyuan/exp_result/fd_rtnl_16_8_8_24_l/debug/weights/pruned_best.pth'), strict=True)
+    
+    # loss_fn = nn.CTCLoss(blank=27)
+    # print(cal_sparsity(model))
+    # print(cal_sparsity(model_p))
+    # loss_val = validate(val_loader, model, loss_fn)
+    # loss_val = validate(val_loader, model_p, loss_fn)
 
-    raw_w_shape = (128,128,7)
-    raw_w_shape = (1632,36548,1)
-    raw_w_shape = (128,128,7)
-    raw_w_shape = (512,512,1)
-    compression_rate = [1, 2, 4, 8, 16, 32, 64]
+    # name_list = list()
+    # para_list = list()
+    # para_p_list = list()
+    # for name, para in model.named_parameters():
+    #     name_list.append(name)
+    #     para_list.append(para)
+    # for name, para in model_p.named_parameters():
+    #     para_p_list.append(para)
 
-    for r in compression_rate:
-        sparsity = 1 - 1 / r
-        print(r,"=========")
+    # a = model.state_dict()
+    # for i, name in enumerate(name_list):
+    #     if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+    #         raw_w = para_list[i]
+    #         mask_w = para_p_list[i]
+    #         cal_sparsity(model_p)
+    #         ones = torch.ones_like(mask_w)
+    #         zeros = torch.zeros_like(mask_w)
+    #         mask = torch.where(abs(mask_w) <= 0, zeros, ones)
+    #         p_w = coo_reserve_layer(raw_w, mask, 0.15)
+    #         a[name] = p_w
+    # model.load_state_dict(a)
+    # loss_val = validate(val_loader, model, loss_fn)
+
+    # a = model.state_dict()
+    # for i, name in enumerate(name_list):
+    #     if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+    #         raw_w = para_list[i]
+    #         mask_w = para_p_list[i]
+    #         cal_sparsity(model_p)
+    #         ones = torch.ones_like(mask_w)
+    #         zeros = torch.zeros_like(mask_w)
+    #         mask = torch.where(abs(mask_w) <= 0, zeros, ones)
+    #         p_w = coo_reserve_layer(raw_w, mask, 0.35)
+    #         a[name] = p_w
+    # model.load_state_dict(a)
+    # loss_val = validate(val_loader, model, loss_fn)
+
+    # a = model.state_dict()
+    # for i, name in enumerate(name_list):
+    #     if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+    #         raw_w = para_list[i]
+    #         mask_w = para_p_list[i]
+    #         cal_sparsity(model_p)
+    #         ones = torch.ones_like(mask_w)
+    #         zeros = torch.zeros_like(mask_w)
+    #         mask = torch.where(abs(mask_w) <= 0, zeros, ones)
+    #         p_w = coo_reserve_layer(raw_w, mask, 0.85)
+    #         a[name] = p_w
+    # model.load_state_dict(a)
+    # loss_val = validate(val_loader, model, loss_fn)
+
+    return p_w
 
 
-        # print("bitmap:", cal_bitmap_overhead(raw_w_shape, sparsity))
-        # print("pattern:", cal_pattern_overhead(raw_w_shape, sparsity, [16,16], 16))
-        # print("none:", cal_none_overhead(raw_w_shape, sparsity))
-        # print("csr:", cal_csr_overhead(raw_w_shape, sparsity))
-        # print("csc:", cal_csc_overhead(raw_w_shape, sparsity))
-        # print("coo:", cal_coo_overhead(raw_w_shape, sparsity))
+if __name__ == "__main__":
+    
+    # print(loss_val)
+    # raw_w_shape = (128,128,7)
+    # raw_w_shape = (1632,36548,1)
+    # raw_w_shape = (128,128,7)
+    # compression_rate = [1, 2, 4, 8, 16, 32, 64]
 
-        # print("bitmap:", cal_bitmap_overhead(raw_w_shape, sparsity))
-        # print("pattern:", cal_pattern_overhead(raw_w_shape, sparsity, [16,16], 16))
-        print(cal_coo_overhead(raw_w_shape, sparsity))
-        print(cal_csr_overhead(raw_w_shape, sparsity))
-        print(cal_csc_overhead(raw_w_shape, sparsity))
-        print(cal_rlc_overhead(raw_w_shape, sparsity, 2))
-        print(cal_rlc_overhead(raw_w_shape, sparsity, 4))
-        print(cal_bitmap_overhead(raw_w_shape, sparsity))
-        print(cal_pattern_overhead(raw_w_shape, sparsity, [8,8], 16))
-        
+    # for r in compression_rate:
+    #     sparsity = 1 - 1 / r
+    #     overhead = cal_rlc_overhead(raw_w_shape, sparsity, 8)
+    #     print(r, overhead)
+
+    # print("bitmap:", cal_bitmap_overhead(raw_w_shape, sparsity))
+    # print("pattern:", cal_pattern_overhead(raw_w_shape, sparsity, [16,16], 16))
+    # print("none:", cal_none_overhead(raw_w_shape, sparsity))
+    # print("csr:", cal_csr_overhead(raw_w_shape, sparsity))
+    # print("csc:", cal_csc_overhead(raw_w_shape, sparsity))
+    # print("coo:", cal_coo_overhead(raw_w_shape, sparsity))
+    # print("rcl4:", cal_rlc_overhead(raw_w_shape, sparsity, 4))
+    # print("rcl2:", cal_rlc_overhead(raw_w_shape, sparsity, 2))
 
     # np.random.seed(0)
     # weights = []
@@ -1504,17 +1583,17 @@ if __name__ == "__main__":
     #         raw_w[i*3:i*3+3,j*3:j*3+3] = weights[3*i+j].reshape(3,3)
     # raw_w = torch.from_numpy(raw_w).unsqueeze(2).cuda()
 
-    # pattern_shape = [8, 8]
-    # pattern_nnz = 8
-    # stride = pattern_shape
-    # pattern_num = 16
-    # raw_w = torch.randn((512, 512, 1)).cuda()
 
-    # pattern_set = find_top_k_by_kmeans(raw_w, pattern_num, pattern_shape, pattern_nnz, stride)
-    # # print(pattern_set)
-    # print(torch.abs(raw_w).sum())
-    # mask = apply_patterns(raw_w, pattern_set)
-    # print(mask.size(), raw_w.size())
-    # prun_w = mask * raw_w
-    # print(torch.abs(prun_w).sum())
+    pattern_shape = [8, 8]
+    pattern_nnz = 8
+    stride = pattern_shape
+    pattern_num = 16
+    raw_w = torch.randn((512, 512, 1)).cuda()
 
+    pattern_set = find_top_k_by_kmeans(raw_w, pattern_num, pattern_shape, pattern_nnz, stride)
+    # print(pattern_set)
+    print(torch.abs(raw_w).sum())
+    mask = apply_patterns(raw_w, pattern_set)
+    print(mask.size(), raw_w.size())
+    prun_w = mask * raw_w
+    print(torch.abs(prun_w).sum())
