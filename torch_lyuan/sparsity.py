@@ -1467,6 +1467,7 @@ def coo_reserve_layer(raw_w, mask, coo_percent):
 def cal_overhead(net_arch, compression_rate):
     print('net_arch:',net_arch)
     print('compression_rate:',compression_rate)
+    print('coding methos:coo, csr, csc, rlc2, rlc-4, bitmap, pattern')
     for r in compression_rate:
         sparsity = 1 - 1 / r
         cal_coo = 0
@@ -1598,9 +1599,26 @@ if __name__ == "__main__":
     compression_rate = [1, 2, 4, 8, 16, 32, 64]
     lstm_arch = [((512,512,1),12),((512,440,1),4),((1928,512,1),1),((48,512,1),1)]
     wavenet_arch = [((128,128,7),30),((128,128,1),15)]
-    cal_overhead(wavenet_arch,compression_rate)
-    cal_overhead(lstm_arch,compression_rate)
+    # cal_overhead(wavenet_arch,compression_rate)
+    # cal_overhead(lstm_arch,compression_rate)
 
+    cal_overhead(wavenet_arch,[8])
+    # nnz:8-16  coo_nnz:0-8
+    for coo_nnz in [1,2,3,4,5,6,7,8]:
+        sparsity = 1 - coo_nnz/64
+        cal_coo = 0
+        for raw_w_shape,raw_w_num in wavenet_arch:
+            cal_coo += raw_w_num*cal_coo_overhead(raw_w_shape, sparsity)
+        print('coo_nnz:',coo_nnz,'coo_index:',cal_coo)
+
+    cal_overhead(lstm_arch,[32])
+    # nnz:2-4  coo_nnz:0-2
+    for coo_nnz in [0.5,1,1.5,2]:
+        sparsity = 1 - coo_nnz/64
+        cal_coo = 0
+        for raw_w_shape,raw_w_num in wavenet_arch:
+            cal_coo += raw_w_num*cal_coo_overhead(raw_w_shape, sparsity)
+        print('coo_nnz:',coo_nnz,'coo_index:',cal_coo)
 
     # np.random.seed(0)
     # weights = []
@@ -1614,16 +1632,16 @@ if __name__ == "__main__":
     # raw_w = torch.from_numpy(raw_w).unsqueeze(2).cuda()
 
 
-    pattern_shape = [8, 8]
-    pattern_nnz = 8
-    stride = pattern_shape
-    pattern_num = 16
-    raw_w = torch.randn((512, 512, 1)).cuda()
+    # pattern_shape = [8, 8]
+    # pattern_nnz = 8
+    # stride = pattern_shape
+    # pattern_num = 16
+    # raw_w = torch.randn((512, 512, 1)).cuda()
 
-    pattern_set = find_top_k_by_kmeans(raw_w, pattern_num, pattern_shape, pattern_nnz, stride)
-    # print(pattern_set)
-    print(torch.abs(raw_w).sum())
-    mask = apply_patterns(raw_w, pattern_set)
-    print(mask.size(), raw_w.size())
-    prun_w = mask * raw_w
-    print(torch.abs(prun_w).sum())
+    # pattern_set = find_top_k_by_kmeans(raw_w, pattern_num, pattern_shape, pattern_nnz, stride)
+    # # print(pattern_set)
+    # print(torch.abs(raw_w).sum())
+    # mask = apply_patterns(raw_w, pattern_set)
+    # print(mask.size(), raw_w.size())
+    # prun_w = mask * raw_w
+    # print(torch.abs(prun_w).sum())
