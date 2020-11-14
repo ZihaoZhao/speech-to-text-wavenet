@@ -1212,7 +1212,7 @@ def find_top_k_by_kmeans(raw_w, pattern_num, pattern_shape, pattern_nnz, stride)
         kernel[p_i, 0, :, :] = pattern_set[p_i]
     # print(f"find_top_k_by_kmeans 3. clustering cost====={time.time()-start_t} s. \
     #     pattern_shape:{raw_w.shape},pattern_num:{pattern_num},pattern_nnz:{pattern_nnz}")
-    return kernel
+    return kernel,True
 
 def raw_w_list2raw_w_chunk(raw_w_list):
     assert raw_w_list[0].size(0) == raw_w_list[0].size(1)
@@ -1338,7 +1338,7 @@ def cal_csr_overhead(raw_w_shape, sparsity):
     indptr_overhead = len(raw_w.indptr) * math.log(col_num * row_num * (1-sparsity), 2)
     data_overhead   = len(raw_w.data) * weight_bit
 
-    return indics_overhead + indptr_overhead + data_overhead
+    return indics_overhead + indptr_overhead #+ data_overhead
 
 def cal_csc_overhead(raw_w_shape, sparsity):
     # raw_w = torch.flatten(raw_w, start_dim=1, end_dim=2).numpy()
@@ -1357,7 +1357,7 @@ def cal_csc_overhead(raw_w_shape, sparsity):
     indptr_overhead = len(raw_w.indptr) * math.log(col_num * row_num * (1-sparsity), 2)
     data_overhead   = len(raw_w.data) * weight_bit
 
-    return indics_overhead + indptr_overhead + data_overhead
+    return indics_overhead + indptr_overhead #+ data_overhead
 
 def cal_coo_overhead(raw_w_shape, sparsity):
     # raw_w = torch.flatten(raw_w, start_dim=1, end_dim=2).numpy()
@@ -1372,11 +1372,11 @@ def cal_coo_overhead(raw_w_shape, sparsity):
     # print(len(raw_w.row))
     # print(len(raw_w.data))
     # scipy.sparse(raw_w)
-    col_index_overhead = len(raw_w.col) * math.log(row_num, 2)
-    row_index_overhead = len(raw_w.row) * math.log(col_num, 2)
+    col_index_overhead = len(raw_w.col) * math.log(16, 2)
+    row_index_overhead = len(raw_w.row) * math.log(16, 2)
     data_overhead  = len(raw_w.data) * weight_bit
 
-    return col_index_overhead + row_index_overhead + data_overhead
+    return col_index_overhead + row_index_overhead #+ data_overhead
 
 def cal_rlc_overhead(raw_w_shape, sparsity, rlc_bit):
     col_num = raw_w_shape[0]
@@ -1404,7 +1404,7 @@ def cal_rlc_overhead(raw_w_shape, sparsity, rlc_bit):
                 weight_overhead += weight_bit
                 run_overhead += rlc_bit
 
-    return run_overhead + weight_overhead
+    return run_overhead #+ weight_overhead
 
 def cal_bitmap_overhead(raw_w_shape, sparsity):
     col_num = raw_w_shape[0]
@@ -1413,7 +1413,7 @@ def cal_bitmap_overhead(raw_w_shape, sparsity):
 
     bitmap_overhead = col_num * row_num
     weight_overhead = col_num * row_num * (1-sparsity) * weight_bit
-    return bitmap_overhead + weight_overhead
+    return bitmap_overhead #+ weight_overhead
 
 def cal_pattern_overhead(raw_w_shape, sparsity, pattern_shape, pattern_num):
     col_num = raw_w_shape[0]
@@ -1421,12 +1421,12 @@ def cal_pattern_overhead(raw_w_shape, sparsity, pattern_shape, pattern_num):
     weight_bit = 8
 
     sub_matrix_num = (col_num * row_num) / (pattern_shape[0] * pattern_shape[1])
-    pattern_coo_coding = pattern_num * (pattern_shape[0] * pattern_shape[1]) * sparsity
+    pattern_coo_coding = pattern_num * (pattern_shape[0] * pattern_shape[1]) * (1-sparsity)
 
-    pattern_coo_coding_overhead = pattern_coo_coding * (math.log(pattern_shape[0], 2) + math.log(pattern_shape[1], 2))
-    pattern_idx_overhead = sub_matrix_num * (math.log(pattern_shape[0], 2) + math.log(pattern_shape[1], 2))
+    pattern_coo_coding_overhead = pattern_coo_coding * (math.log(16, 2) + math.log(16, 2))
+    pattern_idx_overhead = sub_matrix_num * math.log(pattern_num, 2)
     weight_overhead = col_num * row_num * (1-sparsity) * weight_bit
-    return pattern_coo_coding_overhead + pattern_idx_overhead + weight_overhead
+    return pattern_coo_coding_overhead + pattern_idx_overhead #+ weight_overhead
 
 
 def coo_curve_layer(raw_w, mask, coo_percent):
@@ -1464,24 +1464,34 @@ if __name__ == "__main__":
 
 #     validate(val_loader, model, loss_fn)
 
-    # raw_w_shape = (128,128,7)
-    # raw_w_shape = (1632,36548,1)
-    # raw_w_shape = (128,128,7)
-    # compression_rate = [1, 2, 4, 8, 16, 32, 64]
+    raw_w_shape = (128,128,7)
+    raw_w_shape = (1632,36548,1)
+    raw_w_shape = (128,128,7)
+    raw_w_shape = (512,512,1)
+    compression_rate = [1, 2, 4, 8, 16, 32, 64]
 
-    # for r in compression_rate:
-    #     sparsity = 1 - 1 / r
-    #     overhead = cal_rlc_overhead(raw_w_shape, sparsity, 8)
-    #     print(r, overhead)
+    for r in compression_rate:
+        sparsity = 1 - 1 / r
+        print(r,"=========")
 
-    # print("bitmap:", cal_bitmap_overhead(raw_w_shape, sparsity))
-    # print("pattern:", cal_pattern_overhead(raw_w_shape, sparsity, [16,16], 16))
-    # print("none:", cal_none_overhead(raw_w_shape, sparsity))
-    # print("csr:", cal_csr_overhead(raw_w_shape, sparsity))
-    # print("csc:", cal_csc_overhead(raw_w_shape, sparsity))
-    # print("coo:", cal_coo_overhead(raw_w_shape, sparsity))
-    # print("rcl4:", cal_rlc_overhead(raw_w_shape, sparsity, 4))
-    # print("rcl2:", cal_rlc_overhead(raw_w_shape, sparsity, 2))
+
+        # print("bitmap:", cal_bitmap_overhead(raw_w_shape, sparsity))
+        # print("pattern:", cal_pattern_overhead(raw_w_shape, sparsity, [16,16], 16))
+        # print("none:", cal_none_overhead(raw_w_shape, sparsity))
+        # print("csr:", cal_csr_overhead(raw_w_shape, sparsity))
+        # print("csc:", cal_csc_overhead(raw_w_shape, sparsity))
+        # print("coo:", cal_coo_overhead(raw_w_shape, sparsity))
+
+        # print("bitmap:", cal_bitmap_overhead(raw_w_shape, sparsity))
+        # print("pattern:", cal_pattern_overhead(raw_w_shape, sparsity, [16,16], 16))
+        print(cal_coo_overhead(raw_w_shape, sparsity))
+        print(cal_csr_overhead(raw_w_shape, sparsity))
+        print(cal_csc_overhead(raw_w_shape, sparsity))
+        print(cal_rlc_overhead(raw_w_shape, sparsity, 2))
+        print(cal_rlc_overhead(raw_w_shape, sparsity, 4))
+        print(cal_bitmap_overhead(raw_w_shape, sparsity))
+        print(cal_pattern_overhead(raw_w_shape, sparsity, [8,8], 16))
+        
 
     # np.random.seed(0)
     # weights = []
@@ -1494,17 +1504,17 @@ if __name__ == "__main__":
     #         raw_w[i*3:i*3+3,j*3:j*3+3] = weights[3*i+j].reshape(3,3)
     # raw_w = torch.from_numpy(raw_w).unsqueeze(2).cuda()
 
-    pattern_shape = [8, 8]
-    pattern_nnz = 8
-    stride = pattern_shape
-    pattern_num = 16
-    raw_w = torch.randn((512, 512, 1)).cuda()
+    # pattern_shape = [8, 8]
+    # pattern_nnz = 8
+    # stride = pattern_shape
+    # pattern_num = 16
+    # raw_w = torch.randn((512, 512, 1)).cuda()
 
-    pattern_set = find_top_k_by_kmeans(raw_w, pattern_num, pattern_shape, pattern_nnz, stride)
-    # print(pattern_set)
-    print(torch.abs(raw_w).sum())
-    mask = apply_patterns(raw_w, pattern_set)
-    print(mask.size(), raw_w.size())
-    prun_w = mask * raw_w
-    print(torch.abs(prun_w).sum())
+    # pattern_set = find_top_k_by_kmeans(raw_w, pattern_num, pattern_shape, pattern_nnz, stride)
+    # # print(pattern_set)
+    # print(torch.abs(raw_w).sum())
+    # mask = apply_patterns(raw_w, pattern_set)
+    # print(mask.size(), raw_w.size())
+    # prun_w = mask * raw_w
+    # print(torch.abs(prun_w).sum())
 
