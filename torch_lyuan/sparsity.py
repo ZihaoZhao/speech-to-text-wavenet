@@ -1126,7 +1126,7 @@ def find_top_k_by_similarity(raw_w, pattern_candidates, stride, pattern_num):
 
     return kernel
 
-def find_top_k_by_kmeans(raw_w, pattern_num, pattern_shape, pattern_nnz, stride):
+def find_top_k_by_kmeans(raw_w, pattern_num, pattern_shape, pattern_nnz, stride, kmeans_lib = 'sklearn'):
     start_t = time.time()
     p_num_x = (raw_w.size(0) - pattern_shape[0])//stride[0] + 1
     p_num_y = (raw_w.size(1) - pattern_shape[1])//stride[1] + 1
@@ -1177,7 +1177,6 @@ def find_top_k_by_kmeans(raw_w, pattern_num, pattern_shape, pattern_nnz, stride)
     # print(f"find_top_k_by_kmeans 2.pattern candidate cost===={time.time()-start_t} s. \
     #     pattern_shape:{raw_w.shape},pattern_num:{pattern_num},pattern_nnz:{pattern_nnz}")
     # centers, _, _, n = k_means(X=pattern_candidates, n_clusters=pattern_num, return_n_iter=True, max_iter=3)
-    kmeans_lib = 'sklearn'
     if kmeans_lib == 'sklearn':
         clf = sklearn.cluster.KMeans(n_clusters=pattern_num)
         clf.fit(pattern_candidates)
@@ -1424,7 +1423,7 @@ def cal_rlc_overhead(raw_w_shape, sparsity, rlc_bit):
 
     return run_overhead #+ weight_overhead
 
-def cal_bitmap_overhead(raw_w_shape, sparsity):
+def cal_bmp_overhead(raw_w_shape, sparsity):
     col_num = raw_w_shape[0]
     row_num = raw_w_shape[1] * raw_w_shape[2]
     weight_bit = 8
@@ -1433,7 +1432,7 @@ def cal_bitmap_overhead(raw_w_shape, sparsity):
     weight_overhead = col_num * row_num * (1-sparsity) * weight_bit
     return bitmap_overhead #+ weight_overhead
 
-def cal_pattern_overhead(raw_w_shape, sparsity, pattern_shape, pattern_num):
+def cal_ptn_overhead(raw_w_shape, sparsity, pattern_shape, pattern_num):
     col_num = raw_w_shape[0]
     row_num = raw_w_shape[1] * raw_w_shape[2]
     weight_bit = 8
@@ -1463,6 +1462,29 @@ def coo_reserve_layer(raw_w, mask, coo_percent):
     coo_w = torch.where(abs(coo_w) < thre, zeros, raw_w)
 
     p_w = p_w + coo_w
+    return p_w
+
+def cal_overhead(net_arch, compression_rate):
+    print('net_arch:',net_arch)
+    print('compression_rate:',compression_rate)
+    for r in compression_rate:
+        sparsity = 1 - 1 / r
+        cal_coo = 0
+        cal_csr = 0
+        cal_csc = 0
+        cal_rlc = 0
+        cal_rlc = 0
+        cal_bit = 0
+        cal_pat = 0
+        for raw_w_shape,raw_w_num in net_arch:
+            cal_coo += raw_w_num*cal_coo_overhead(raw_w_shape, sparsity)
+            cal_csr += raw_w_num*cal_csr_overhead(raw_w_shape, sparsity)
+            cal_csc += raw_w_num*cal_csc_overhead(raw_w_shape, sparsity)
+            cal_rlc += raw_w_num*cal_rlc_overhead(raw_w_shape, sparsity, 2)
+            cal_rlc += raw_w_num*cal_rlc_overhead(raw_w_shape, sparsity, 4)
+            cal_bit += raw_w_num*cal_bmp_overhead(raw_w_shape, sparsity)
+            cal_pat += raw_w_num*cal_ptn_overhead(raw_w_shape, sparsity, [8,8], 16)
+        print(cal_coo, cal_csr, cal_csc, cal_rlc, cal_rlc, cal_bit, cal_pat)
 
 
 
@@ -1547,7 +1569,7 @@ def coo_reserve_layer(raw_w, mask, coo_percent):
     # model.load_state_dict(a)
     # loss_val = validate(val_loader, model, loss_fn)
 
-    return p_w
+
 
 
 if __name__ == "__main__":
@@ -1571,6 +1593,14 @@ if __name__ == "__main__":
     # print("coo:", cal_coo_overhead(raw_w_shape, sparsity))
     # print("rcl4:", cal_rlc_overhead(raw_w_shape, sparsity, 4))
     # print("rcl2:", cal_rlc_overhead(raw_w_shape, sparsity, 2))
+    # validate(val_loader, model, loss_fn)
+
+    compression_rate = [1, 2, 4, 8, 16, 32, 64]
+    lstm_arch = [((512,512,1),12),((512,440,1),4),((1928,512,1),1),((48,512,1),1)]
+    wavenet_arch = [((128,128,7),30),((128,128,1),15)]
+    cal_overhead(wavenet_arch,compression_rate)
+    cal_overhead(lstm_arch,compression_rate)
+
 
     # np.random.seed(0)
     # weights = []
