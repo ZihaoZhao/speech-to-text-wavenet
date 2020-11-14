@@ -32,126 +32,6 @@ from math import sqrt
 
 
 
-# def point_avg(points):
-#     """
-#     Accepts a list of points, each with the same number of dimensions.
-#     NB. points can have more dimensions than 2
-    
-#     Returns a new point which is the center of all the points.
-#     """
-#     dimensions = len(points[0])
-
-#     new_center = []
-
-#     for dimension in range(dimensions):
-#         dim_sum = 0  # dimension sum
-#         for p in points:
-#             dim_sum += p[dimension]
-
-#         # average of each dimension
-#         new_center.append(dim_sum / float(len(points)))
-
-#     return new_center
-
-
-# def update_centers(data_set, assignments):
-#     """
-#     Accepts a dataset and a list of assignments; the indexes 
-#     of both lists correspond to each other.
-#     Compute the center for each of the assigned groups.
-#     Return `k` centers where `k` is the number of unique assignments.
-#     """
-#     new_means = defaultdict(list)
-#     centers = []
-#     for assignment, point in zip(assignments, data_set):
-#         new_means[assignment].append(point)
-        
-#     for points in new_means.values():
-#         centers.append(point_avg(points))
-
-#     return centers
-
-
-# def assign_points(data_points, centers):
-#     """
-#     Given a data set and a list of points betweeen other points,
-#     assign each point to an index that corresponds to the index
-#     of the center point on it's proximity to that point. 
-#     Return a an array of indexes of centers that correspond to
-#     an index in the data set; that is, if there are N points
-#     in `data_set` the list we return will have N elements. Also
-#     If there are Y points in `centers` there will be Y unique
-#     possible values within the returned list.
-#     """
-#     assignments = []
-#     for point in data_points:
-#         shortest = 0.0  # positive infinity
-#         shortest_index = 0
-#         for i in range(len(centers)):
-#             val = distance(point, centers[i])
-#             if val < shortest:
-#                 shortest = val
-#                 shortest_index = i
-#         assignments.append(shortest_index)
-#     return assignments
-
-
-# def distance(a, b):
-#     """
-#     """
-#     dimensions = len(a)
-    
-#     _sum = 0
-#     for dimension in range(dimensions):
-#         difference_sq = (a[dimension] - b[dimension]) ** 2
-#         _sum += difference_sq
-#     return sqrt(_sum)
-
-
-# def generate_k(data_set, k):
-#     """
-#     Given `data_set`, which is an array of arrays,
-#     find the minimum and maximum for each coordinate, a range.
-#     Generate `k` random points between the ranges.
-#     Return an array of the random points within the ranges.
-#     """
-#     centers = []
-#     dimensions = len(data_set[0])
-#     min_max = defaultdict(int)
-
-#     for point in data_set:
-#         for i in range(dimensions):
-#             val = point[i]
-#             min_key = 'min_%d' % i
-#             max_key = 'max_%d' % i
-#             if min_key not in min_max or val < min_max[min_key]:
-#                 min_max[min_key] = val
-#             if max_key not in min_max or val > min_max[max_key]:
-#                 min_max[max_key] = val
-
-#     for _k in range(k):
-#         rand_point = []
-#         for i in range(dimensions):
-#             min_val = min_max['min_%d' % i]
-#             max_val = min_max['max_%d' % i]
-            
-#             rand_point.append(uniform(min_val, max_val))
-
-#         centers.append(rand_point)
-
-#     return centers
-
-
-# def k_means(dataset, k):
-#     k_points = generate_k(dataset, k)
-#     assignments = assign_points(dataset, k_points)
-#     old_assignments = None
-#     while assignments != old_assignments:
-#         new_centers = update_centers(dataset, assignments)
-#         old_assignments = assignments
-#         assignments = assign_points(dataset, new_centers)
-#     return assignments, dataset
-
 #----------------description----------------#
 # description: prune the input model
 # param {*} model
@@ -367,7 +247,7 @@ def pruning(model, sparse_mode='dense'):
                 raw_w = para_list[i]
                 if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
                     if raw_w.size(0) == 128 and raw_w.size(1) == 128:
-                        mask = apply_patterns(raw_w, cfg.fd_rtn_pattern_set[name], coo_num=cfg.coo_num)
+                        mask = apply_patterns(raw_w, cfg.fd_rtn_pattern_set[name], coo_num=cfg.coo_num, random=True)
                         p_w = raw_w * mask
                         a[name] = p_w
                     else:
@@ -1126,7 +1006,7 @@ def find_top_k_by_similarity(raw_w, pattern_candidates, stride, pattern_num):
 
     return kernel
 
-def find_top_k_by_kmeans(raw_w, pattern_num, pattern_shape, pattern_nnz, stride, kmeans_lib = 'sklearn'):
+def find_top_k_by_kmeans(raw_w, pattern_num, pattern_shape, pattern_nnz, stride, kmeans_lib = 'sklearn', random=False):
     start_t = time.time()
     p_num_x = (raw_w.size(0) - pattern_shape[0])//stride[0] + 1
     p_num_y = (raw_w.size(1) - pattern_shape[1])//stride[1] + 1
@@ -1144,73 +1024,79 @@ def find_top_k_by_kmeans(raw_w, pattern_num, pattern_shape, pattern_nnz, stride,
     # print(f"find_top_k_by_kmeans 1.move to cpu cost===={time.time()-start_t} s. \
     #     pattern_shape:{raw_w.shape},pattern_num:{pattern_num},pattern_nnz:{pattern_nnz}")
 
-    pattern_candidates = list()
-    for k in range(raw_w.shape[2]):
-        for i in range(0, p_num_x):
-            for j in range(0, p_num_y):
-                # print(raw_w.shape)
-                # print(k,i,j,p_num_x, p_num_y)
-                # print(pattern_num, pattern_shape, pattern_nnz, stride)
-                # print(i*stride[0], i*stride[0] + pattern_shape[0],
-                                        #   j*stride[1], j*stride[1] + pattern_shape[1], k)
-                sub_matrix = np.abs(raw_w[i*stride[0]: i*stride[0] + pattern_shape[0],
-                                          j*stride[1]: j*stride[1] + pattern_shape[1], k]).flatten()
-                # print("sub_matrix:", sub_matrix.shape)
-                index = sub_matrix.argsort()[-pattern_nnz:]
-                pattern_candidate = np.zeros_like(sub_matrix)
-                for t in index:
-                    pattern_candidate[t] = 1
-                # value, _ = torch.topk(sub_matrix.abs().flatten(), pattern_nnz)
-                # zero_threshold = value[-1]
+    if random == False:
+        pattern_candidates = list()
+        for k in range(raw_w.shape[2]):
+            for i in range(0, p_num_x):
+                for j in range(0, p_num_y):
+                    # print(raw_w.shape)
+                    # print(k,i,j,p_num_x, p_num_y)
+                    # print(pattern_num, pattern_shape, pattern_nnz, stride)
+                    # print(i*stride[0], i*stride[0] + pattern_shape[0],
+                                            #   j*stride[1], j*stride[1] + pattern_shape[1], k)
+                    sub_matrix = np.abs(raw_w[i*stride[0]: i*stride[0] + pattern_shape[0],
+                                            j*stride[1]: j*stride[1] + pattern_shape[1], k]).flatten()
+                    # print("sub_matrix:", sub_matrix.shape)
+                    index = sub_matrix.argsort()[-pattern_nnz:]
+                    pattern_candidate = np.zeros_like(sub_matrix)
+                    for t in index:
+                        pattern_candidate[t] = 1
+                    # value, _ = torch.topk(sub_matrix.abs().flatten(), pattern_nnz)
+                    # zero_threshold = value[-1]
 
-                # ones = torch.ones_like(sub_matrix)
-                # zeros = torch.zeros_like(sub_matrix)
-                # pattern_candidate = torch.where(abs(sub_matrix) < zero_threshold, zeros, ones)
-                # print("pattern_candidate:", pattern_candidate.shape)
+                    # ones = torch.ones_like(sub_matrix)
+                    # zeros = torch.zeros_like(sub_matrix)
+                    # pattern_candidate = torch.where(abs(sub_matrix) < zero_threshold, zeros, ones)
+                    # print("pattern_candidate:", pattern_candidate.shape)
 
-                pattern_candidates.append(pattern_candidate)
-    
-    pattern_candidates = torch.tensor(np.array(pattern_candidates))
-    # print(len(pattern_candidates))
-    # print(pattern_candidates[0].shape)
-    #     print(f"candidate_pattern length:{len(pattern_candidates)},pattern class{len(set(pattern_candidates))}")
-    # print(f"find_top_k_by_kmeans 2.pattern candidate cost===={time.time()-start_t} s. \
-    #     pattern_shape:{raw_w.shape},pattern_num:{pattern_num},pattern_nnz:{pattern_nnz}")
-    # centers, _, _, n = k_means(X=pattern_candidates, n_clusters=pattern_num, return_n_iter=True, max_iter=3)
-    if kmeans_lib == 'sklearn':
-        clf = sklearn.cluster.KMeans(n_clusters=pattern_num)
-        clf.fit(pattern_candidates)
-        centers = clf.cluster_centers_
-    elif kmeans_lib == 'fast':
-        kmeans = KMeans(n_clusters=pattern_num, mode='euclidean', verbose=1)
-        labels = kmeans.fit_predict(pattern_candidates)
-        centers = kmeans.centroids
-    # print(kmeans.centroids.size())
-    # print(labels)
-    # print(f"find_top_k_by_kmeans 3. clustering cost====={time.time()-start_t} s. \
-    #     pattern_shape:{raw_w.shape},pattern_num:{pattern_num},pattern_nnz:{pattern_nnz}")
-    # # clf.fit(pattern_candidates)  # 分组
+                    pattern_candidates.append(pattern_candidate)
+        
+        pattern_candidates = torch.tensor(np.array(pattern_candidates))
+        # print(len(pattern_candidates))
+        # print(pattern_candidates[0].shape)
+        #     print(f"candidate_pattern length:{len(pattern_candidates)},pattern class{len(set(pattern_candidates))}")
+        # print(f"find_top_k_by_kmeans 2.pattern candidate cost===={time.time()-start_t} s. \
+        #     pattern_shape:{raw_w.shape},pattern_num:{pattern_num},pattern_nnz:{pattern_nnz}")
+        # centers, _, _, n = k_means(X=pattern_candidates, n_clusters=pattern_num, return_n_iter=True, max_iter=3)
+        if kmeans_lib == 'sklearn':
+            clf = sklearn.cluster.KMeans(n_clusters=pattern_num)
+            clf.fit(pattern_candidates)
+            centers = clf.cluster_centers_
+        elif kmeans_lib == 'fast':
+            kmeans = KMeans(n_clusters=pattern_num, mode='euclidean', verbose=1)
+            labels = kmeans.fit_predict(pattern_candidates)
+            centers = kmeans.centroids
+        # print(kmeans.centroids.size())
+        # print(labels)
+        # print(f"find_top_k_by_kmeans 3. clustering cost====={time.time()-start_t} s. \
+        #     pattern_shape:{raw_w.shape},pattern_num:{pattern_num},pattern_nnz:{pattern_nnz}")
+        # # clf.fit(pattern_candidates)  # 分组
 
-    # centers = clf.cluster_centers_ # 两组数据点的中心点
+        # centers = clf.cluster_centers_ # 两组数据点的中心点
 
     pattern_set = list()
-    for pattern in centers:
-        if kmeans_lib == 'sklearn':
-            pattern = torch.from_numpy(pattern)
-        # print(pattern.size())
-        index = pattern.sort()[1][-pattern_nnz:]
-        pattern = torch.zeros_like(pattern)
-        for i in index:
-            pattern[i] = 1
+    if random == False:
+        for pattern in centers:
+            if kmeans_lib == 'sklearn':
+                pattern = torch.from_numpy(pattern)
+            # print(pattern.size())
+            index = pattern.sort()[1][-pattern_nnz:]
+            pattern = torch.zeros_like(pattern)
+            for i in index:
+                pattern[i] = 1
 
-        pattern_set.append(pattern.reshape(pattern_shape[0], pattern_shape[1]))
+            pattern_set.append(pattern.reshape(pattern_shape[0], pattern_shape[1]))
+    else:
+        pattern_set_tensor = generate_pattern(pattern_num, pattern_shape, pattern_nnz)
+        for i in range(pattern_set_tensor.size(0)):
+            pattern_set.append(pattern_set_tensor[i, :, :])
 
     kernel = torch.zeros((len(pattern_set), 1, pattern_shape[0], pattern_shape[1])).cuda()
     for p_i, p in enumerate(pattern_set):
         kernel[p_i, 0, :, :] = pattern_set[p_i]
     # print(f"find_top_k_by_kmeans 3. clustering cost====={time.time()-start_t} s. \
     #     pattern_shape:{raw_w.shape},pattern_num:{pattern_num},pattern_nnz:{pattern_nnz}")
-    return kernel,True
+    return kernel, True
 
 def raw_w_list2raw_w_chunk(raw_w_list):
     assert raw_w_list[0].size(0) == raw_w_list[0].size(1)
@@ -1271,30 +1157,32 @@ def mask_chunk2mask_list(mask_chunk, batch_list):
         mask_list.append(mask)
     return mask_list
 
-def apply_patterns(raw_w, kernel, coo_num=0):
+def apply_patterns(raw_w, kernel, coo_num=0, random=False):
     # print(raw_w.size())
-    raw_w = torch.abs(raw_w)
+    if random == True:
+        raw_w_a = torch.randn(raw_w.size()).cuda()
+    raw_w_a = torch.abs(raw_w_a)
     # pattern_set = [(torch.from_numpy(p)) for p in pattern_set]
     start_t = time.time()
     # pattern_shape = [pattern_set[0].size(0), pattern_set[0].size(1)]
     pattern_shape = [kernel.size(2), kernel.size(3)]
     stride = (pattern_shape[0], pattern_shape[1])
     # print(pattern_shape)
-    p_num_x = (raw_w.size(0) - pattern_shape[0]) // stride[0] + 1
-    p_num_y = (raw_w.size(1) - pattern_shape[1]) // stride[1] + 1
+    p_num_x = (raw_w_a.size(0) - pattern_shape[0]) // stride[0] + 1
+    p_num_y = (raw_w_a.size(1) - pattern_shape[1]) // stride[1] + 1
 
-    if raw_w.device.type == 'cpu':
-        raw_w = raw_w.cuda()
+    if raw_w_a.device.type == 'cpu':
+        raw_w_a = raw_w_a.cuda()
     unsqueeze = False
-    if raw_w.dim() == 2:
-        raw_w = raw_w.unsqueeze(2)
+    if raw_w_a.dim() == 2:
+        raw_w_a = raw_w_a.unsqueeze(2)
         unsqueeze = True
 
-    mask = torch.zeros_like(raw_w).cuda()
+    mask = torch.zeros_like(raw_w_a).cuda()
     # 7,128,128
-    raw_w = raw_w.permute(2, 0, 1)
+    raw_w_a = raw_w_a.permute(2, 0, 1)
     
-    out = F.conv2d(raw_w.unsqueeze(1), kernel, stride=stride, padding=0)
+    out = F.conv2d(raw_w_a.unsqueeze(1), kernel, stride=stride, padding=0)
 
     out_max = torch.max(out, dim=1)[0].unsqueeze(1).repeat(1,kernel.size(0),1,1)
     idx = torch.where(out >= out_max, torch.ones_like(out), torch.zeros_like(out))
@@ -1306,11 +1194,11 @@ def apply_patterns(raw_w, kernel, coo_num=0):
     # 128,128,7
     mask = mask.permute(1, 2, 0)
 
-    w_num = raw_w.size(0) * raw_w.size(1) * raw_w.size(2)
+    w_num = raw_w_a.size(0) * raw_w_a.size(1) * raw_w_a.size(2)
     if coo_num != 0:
         mask_r = 1 - mask
-        raw_w = raw_w.permute(1, 2, 0)
-        coo_w = raw_w * mask_r
+        raw_w_a = raw_w_a.permute(1, 2, 0)
+        coo_w = raw_w_a * mask_r
 
         value, _ = torch.topk(
             coo_w.abs().flatten(), int(coo_num * w_num / (pattern_shape[0]*pattern_shape[1])))
