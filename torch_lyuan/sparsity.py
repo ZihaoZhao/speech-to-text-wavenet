@@ -19,6 +19,8 @@ import math
 import time
 from fast_pytorch_kmeans import KMeans
 
+import sklearn.cluster._kmeans
+
 # from sklearn.cluster import k_means
 # from kmeans_pytorch import kmeans
 import scipy.sparse
@@ -1175,9 +1177,17 @@ def find_top_k_by_kmeans(raw_w, pattern_num, pattern_shape, pattern_nnz, stride)
     # print(f"find_top_k_by_kmeans 2.pattern candidate cost===={time.time()-start_t} s. \
     #     pattern_shape:{raw_w.shape},pattern_num:{pattern_num},pattern_nnz:{pattern_nnz}")
     # centers, _, _, n = k_means(X=pattern_candidates, n_clusters=pattern_num, return_n_iter=True, max_iter=3)
-    
-    kmeans = KMeans(n_clusters=pattern_num, mode='euclidean', verbose=1)
-    labels = kmeans.fit_predict(pattern_candidates)
+    kmeans_lib = 'sklearn'
+    if kmeans_lib == 'sklearn':
+        centers = sklearn.cluster._kmeans._k_init(X=pattern_candidates.numpy(), n_clusters=pattern_num,
+                                                x_squared_norms=None, random_state=None)
+        clf = sklearn.cluster.KMeans(n_clusters=pattern_num)
+        clf.fit(pattern_candidates)
+        centers = clf.cluster_centers_
+    elif kmeans_lib == 'fast':
+        kmeans = KMeans(n_clusters=pattern_num, mode='euclidean', verbose=1)
+        labels = kmeans.fit_predict(pattern_candidates)
+        centers = kmeans.centroids
     # print(kmeans.centroids.size())
     # print(labels)
     # print(f"find_top_k_by_kmeans 3. clustering cost====={time.time()-start_t} s. \
@@ -1187,7 +1197,7 @@ def find_top_k_by_kmeans(raw_w, pattern_num, pattern_shape, pattern_nnz, stride)
     # centers = clf.cluster_centers_ # 两组数据点的中心点
 
     pattern_set = list()
-    for pattern in kmeans.centroids:
+    for pattern in centers:
         # pattern = torch.from_numpy(pattern)
         # print(pattern.size())
         index = pattern.sort()[1][-pattern_nnz:]
@@ -1438,19 +1448,19 @@ def coo_curve_layer(raw_w, mask, coo_percent):
 
 if __name__ == "__main__":
     
-# import torch.nn as nn
-#     from torch.utils.data import DataLoader
-#     from dataset import VCTK
-#     import dataset
-#     from wavenet import WaveNet
+    # import torch.nn as nn
+    # from torch.utils.data import DataLoader
+    # from dataset import VCTK
+    # import dataset
+    # from wavenet import WaveNet
 
-#     vctk_val = VCTK(cfg, 'val')
-#     val_loader = DataLoader(vctk_val, batch_size=cfg.batch_size, num_workers=8, shuffle=False, pin_memory=True)
+    # vctk_val = VCTK(cfg, 'val')
+    # val_loader = DataLoader(vctk_val, batch_size=cfg.batch_size, num_workers=8, shuffle=False, pin_memory=True)
 
-#     # build model
-#     model = WaveNet(num_classes=28, channels_in=20, dilations=[1,2,4,8,16])
-#     model = nn.DataParallel(model)
-#     model.cuda()
+    # # build model
+    # model = WaveNet(num_classes=28, channels_in=20, dilations=[1,2,4,8,16])
+    # model = nn.DataParallel(model)
+    # model.cuda()
 
 #     validate(val_loader, model, loss_fn)
 

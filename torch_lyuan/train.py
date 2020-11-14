@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-13 21:02:56
+# LastEditTime : 2020-11-14 01:42:51
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 0.001 0-5, 0.0001
 #-------------------------------------------# 
@@ -246,10 +246,10 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         train_loss_list.append(float(_loss))
         torch.cuda.empty_cache()
 
-        val_model = pruning(model, cfg.sparse_mode)
-        sparsity = cal_sparsity(val_model)
+        model = pruning(model, cfg.sparse_mode)
+        sparsity = cal_sparsity(model)
         print(sparsity)
-        loss_val = validate(val_loader, val_model, loss_fn)
+        loss_val = validate(val_loader, model, loss_fn)
         writer.add_scalar('val/loss', loss_val, epoch)
         val_loss_list.append(float(loss_val))
 
@@ -259,8 +259,8 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
             not_better_cnt = 0
             torch.save(model.state_dict(), cfg.workdir+'/weights/dense_best.pth')
             print("saved", cfg.workdir+'/weights/dense_best.pth', not_better_cnt)
-            torch.save(val_model.state_dict(), cfg.workdir+'/weights/pruned_best.pth')
-            print("saved", cfg.workdir+'/weights/pruned_best.pth', not_better_cnt)
+            # torch.save(val_model.state_dict(), cfg.workdir+'/weights/pruned_best.pth')
+            # print("saved", cfg.workdir+'/weights/pruned_best.pth', not_better_cnt)
             best_loss = loss_val
         else:
             not_better_cnt += 1
