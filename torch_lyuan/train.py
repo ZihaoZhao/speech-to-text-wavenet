@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-14 17:10:10
+# LastEditTime : 2020-11-14 21:21:53
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 0.001 0-5, 0.0001
 #-------------------------------------------# 
@@ -113,7 +113,7 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
                 if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
                     raw_w = para_list[i]
                     if raw_w.size(0) == 128 and raw_w.size(1) == 128:
-                        cfg.fd_rtn_pattern_set[name] = find_top_k_by_kmeans(
+                        cfg.fd_rtn_pattern_set[name], _ = find_top_k_by_kmeans(
                             raw_w, cfg.pattern_num, cfg.pattern_shape, cfg.pattern_nnz, stride=cfg.pattern_shape)
 
                 # print("find_pattern_end", name)
