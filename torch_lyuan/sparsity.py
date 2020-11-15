@@ -1172,7 +1172,7 @@ def baseline_pruning(raw_w, pattern_shape, pattern_nnz):
     submatrix_num = p_num_y * p_num_x
 
     value, _ = torch.topk(
-        raw_w_a.abs().flatten(), int(submatrix_num * pattern_nnz / (pattern_shape[0]*pattern_shape[1])))
+        raw_w_a.abs().flatten(), int(submatrix_num * pattern_nnz))
     thre = abs(value[-1])
     zeros = torch.zeros_like(raw_w_a)
     ones = torch.ones_like(raw_w_a)
