@@ -1514,29 +1514,31 @@ if __name__ == "__main__":
     # print("rcl2:", cal_rlc_overhead(raw_w_shape, sparsity, 2))
     # validate(val_loader, model, loss_fn)
 
-    compression_rate = [1, 2, 4, 8, 16, 32, 64]
+    # compression_rate = [1, 2, 4, 8, 16, 32, 64]
+    lstm_compression_rate = [32, 29.09, 26.67, 24.62, 22.86, 21.33, 20, 18.82, 17.78, 16.84, 16]
+    wavenet_compression_rate = [8.00, 7.11, 6.40, 5.82, 5.33, 4.92, 4.57, 4.27, 4.00]
     lstm_arch = [((512,512,1),12),((512,440,1),4),((1928,512,1),1),((48,512,1),1)]
     wavenet_arch = [((128,128,7),30),((128,128,1),15)]
     # cal_overhead(wavenet_arch,compression_rate)
     # cal_overhead(lstm_arch,compression_rate)
 
-    cal_overhead(wavenet_arch,[8])
-    # nnz:8-16  coo_nnz:0-8
-    for coo_nnz in [1,2,3,4,5,6,7,8]:
-        sparsity = 1 - coo_nnz/64
-        cal_coo = 0
-        for raw_w_shape,raw_w_num in wavenet_arch:
-            cal_coo += raw_w_num*cal_coo_overhead(raw_w_shape, sparsity)
-        print('coo_nnz:',coo_nnz,'coo_index:',cal_coo)
+    cal_overhead(wavenet_arch, wavenet_compression_rate)
+    # # nnz:8-16  coo_nnz:0-8
+    # for coo_nnz in [1,2,3,4,5,6,7,8]:
+    #     sparsity = 1 - coo_nnz/64
+    #     cal_coo = 0
+    #     for raw_w_shape,raw_w_num in wavenet_arch:
+    #         cal_coo += raw_w_num*cal_coo_overhead(raw_w_shape, sparsity)
+    #     print('coo_nnz:',coo_nnz,'coo_index:',cal_coo)
 
-    cal_overhead(lstm_arch,[32])
-    # nnz:2-4  coo_nnz:0-2
-    for coo_nnz in [0.5,1,1.5,2]:
-        sparsity = 1 - coo_nnz/64
-        cal_coo = 0
-        for raw_w_shape,raw_w_num in wavenet_arch:
-            cal_coo += raw_w_num*cal_coo_overhead(raw_w_shape, sparsity)
-        print('coo_nnz:',coo_nnz,'coo_index:',cal_coo)
+    # cal_overhead(lstm_arch,[32])
+    # # nnz:2-4  coo_nnz:0-2
+    # for coo_nnz in [0.5,1,1.5,2]:
+    #     sparsity = 1 - coo_nnz/64
+    #     cal_coo = 0
+    #     for raw_w_shape,raw_w_num in wavenet_arch:
+    #         cal_coo += raw_w_num*cal_coo_overhead(raw_w_shape, sparsity)
+    #     print('coo_nnz:',coo_nnz,'coo_index:',cal_coo)
 
     # np.random.seed(0)
     # weights = []
