@@ -1157,6 +1157,33 @@ def mask_chunk2mask_list(mask_chunk, batch_list):
         mask_list.append(mask)
     return mask_list
 
+def baseline_pruning(raw_w, pattern_shape, pattern_nnz):
+
+    raw_w_a = torch.abs(raw_w)
+    if raw_w_a.device.type == 'cpu':
+        raw_w_a = raw_w_a.cuda()
+    unsqueeze = False
+    if raw_w_a.dim() == 2:
+        raw_w_a = raw_w_a.unsqueeze(2)
+        unsqueeze = True
+    
+    p_num_x = int(raw_w_a.size(0) / pattern_shape[0])
+    p_num_y = int(raw_w_a.size(1) / pattern_shape[1])
+    submatrix_num = p_num_y * p_num_x
+
+    value, _ = torch.topk(
+        raw_w_a.abs().flatten(), int(submatrix_num * pattern_nnz / (pattern_shape[0]*pattern_shape[1])))
+    thre = abs(value[-1])
+    zeros = torch.zeros_like(raw_w_a)
+    ones = torch.ones_like(raw_w_a)
+    mask = torch.where(
+        abs(raw_w_a) < thre, zeros, ones)
+    
+    if unsqueeze == True:
+        mask = mask.squeeze(2)
+    # exit()
+    return mask
+
 def apply_patterns(raw_w, kernel, coo_num=0, random=False):
     # print(raw_w.size())
     if random == True:
