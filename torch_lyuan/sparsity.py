@@ -1294,7 +1294,7 @@ def cal_csc_overhead(raw_w_shape, sparsity):
 
     return indics_overhead + indptr_overhead #+ data_overhead
 
-def cal_coo_overhead(raw_w_shape, sparsity):
+def cal_coo_overhead(raw_w_shape, sparsity, if_block=True):
     # raw_w = torch.flatten(raw_w, start_dim=1, end_dim=2).numpy()
     col_num = raw_w_shape[0]
     row_num = raw_w_shape[1] * raw_w_shape[2]
@@ -1307,8 +1307,12 @@ def cal_coo_overhead(raw_w_shape, sparsity):
     # print(len(raw_w.row))
     # print(len(raw_w.data))
     # scipy.sparse(raw_w)
-    col_index_overhead = len(raw_w.col) * math.log(16, 2)
-    row_index_overhead = len(raw_w.row) * math.log(16, 2)
+    if if_block == False:
+        col_index_overhead = len(raw_w.col) * math.log(row_num, 2)
+        row_index_overhead = len(raw_w.row) * math.log(col_num, 2)
+    else:
+        col_index_overhead = len(raw_w.col) * math.log(16, 2)
+        row_index_overhead = len(raw_w.row) * math.log(16, 2)
     data_overhead  = len(raw_w.data) * weight_bit
 
     return col_index_overhead + row_index_overhead #+ data_overhead
@@ -1391,19 +1395,20 @@ def cal_overhead(net_arch, compression_rate):
         cal_coo = 0
         cal_csr = 0
         cal_csc = 0
-        cal_rlc = 0
-        cal_rlc = 0
+        cal_rlc2 = 0
+        cal_rlc4 = 0
         cal_bit = 0
         cal_pat = 0
         for raw_w_shape,raw_w_num in net_arch:
-            cal_coo += raw_w_num*cal_coo_overhead(raw_w_shape, sparsity)
+            cal_coo += raw_w_num*cal_coo_overhead(raw_w_shape, sparsity, if_block=False)
             cal_csr += raw_w_num*cal_csr_overhead(raw_w_shape, sparsity)
             cal_csc += raw_w_num*cal_csc_overhead(raw_w_shape, sparsity)
-            cal_rlc += raw_w_num*cal_rlc_overhead(raw_w_shape, sparsity, 2)
-            cal_rlc += raw_w_num*cal_rlc_overhead(raw_w_shape, sparsity, 4)
+            cal_rlc2 += raw_w_num*cal_rlc_overhead(raw_w_shape, sparsity, 2)
+            cal_rlc4 += raw_w_num*cal_rlc_overhead(raw_w_shape, sparsity, 4)
             cal_bit += raw_w_num*cal_bmp_overhead(raw_w_shape, sparsity)
             cal_pat += raw_w_num*cal_ptn_overhead(raw_w_shape, sparsity, [8,8], 16)
-        print(cal_coo, cal_csr, cal_csc, cal_rlc, cal_rlc, cal_bit, cal_pat)
+        # print(cal_coo, cal_csr, cal_csc, cal_rlc, cal_rlc, cal_bit, cal_pat)
+        print("compression_rate:",r,"rlc4:", cal_rlc4/8/1024, "pat:", cal_pat/8/1024)
 
 
 
@@ -1514,7 +1519,7 @@ if __name__ == "__main__":
     # print("rcl2:", cal_rlc_overhead(raw_w_shape, sparsity, 2))
     # validate(val_loader, model, loss_fn)
 
-    # compression_rate = [1, 2, 4, 8, 16, 32, 64]
+    compression_rate = [1, 2, 4, 8, 16, 32, 64]
     lstm_compression_rate = [32, 29.09, 26.67, 24.62, 22.86, 21.33, 20, 18.82, 17.78, 16.84, 16]
     wavenet_compression_rate = [8.00, 7.11, 6.40, 5.82, 5.33, 4.92, 4.57, 4.27, 4.00]
     lstm_arch = [((512,512,1),12),((512,440,1),4),((1928,512,1),1),((48,512,1),1)]
@@ -1522,23 +1527,23 @@ if __name__ == "__main__":
     # cal_overhead(wavenet_arch,compression_rate)
     # cal_overhead(lstm_arch,compression_rate)
 
-    cal_overhead(wavenet_arch, wavenet_compression_rate)
-    # # nnz:8-16  coo_nnz:0-8
+    # cal_overhead(wavenet_arch, wavenet_compression_rate)
+    # # # nnz:8-16  coo_nnz:0-8
     # for coo_nnz in [1,2,3,4,5,6,7,8]:
     #     sparsity = 1 - coo_nnz/64
     #     cal_coo = 0
     #     for raw_w_shape,raw_w_num in wavenet_arch:
-    #         cal_coo += raw_w_num*cal_coo_overhead(raw_w_shape, sparsity)
-    #     print('coo_nnz:',coo_nnz,'coo_index:',cal_coo)
+    #         cal_coo += raw_w_num*cal_coo_overhead(raw_w_shape, sparsity, if_block=True)
+    #     print('coo_nnz:',coo_nnz,'coo_index:',cal_coo/8/1024)
 
-    # cal_overhead(lstm_arch,[32])
-    # # nnz:2-4  coo_nnz:0-2
-    # for coo_nnz in [0.5,1,1.5,2]:
-    #     sparsity = 1 - coo_nnz/64
-    #     cal_coo = 0
-    #     for raw_w_shape,raw_w_num in wavenet_arch:
-    #         cal_coo += raw_w_num*cal_coo_overhead(raw_w_shape, sparsity)
-    #     print('coo_nnz:',coo_nnz,'coo_index:',cal_coo)
+    cal_overhead(lstm_arch,[21.33])
+    # nnz:2-4  coo_nnz:0-2
+    for coo_nnz in np.arange(0, 2, 0.2):
+        sparsity = 1 - coo_nnz/64
+        cal_coo = 0
+        for raw_w_shape,raw_w_num in wavenet_arch:
+            cal_coo += raw_w_num*cal_coo_overhead(raw_w_shape, sparsity, if_block=True)
+        print('coo_nnz:',coo_nnz,'coo_index:',cal_coo/8/1024)
 
     # np.random.seed(0)
     # weights = []

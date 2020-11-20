@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-15 01:51:17
+# LastEditTime : 2020-11-18 21:36:00
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 0.001 0-5, 0.0001
 #-------------------------------------------# 
@@ -31,6 +31,7 @@ from tensorboardX import SummaryWriter
 import os
 import numpy as np
 
+import time
 import argparse
 from write_excel import *
 
@@ -97,6 +98,7 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
     best_loss = float('inf')
     for epoch in range(cfg.epochs):
         print(f'Training epoch {epoch}')
+        # start_time = time.time()
         _loss = 0.0
         step_cnt = 0
         
@@ -241,7 +243,8 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
             step_cnt += 1
             # except:
             #     continue
-
+        # print(time.time()-start_time)
+        # exit()
         _loss /= len(train_loader)
         writer.add_scalar('train/loss', _loss, epoch)
         train_loss_list.append(float(_loss))
