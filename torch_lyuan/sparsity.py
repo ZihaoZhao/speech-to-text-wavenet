@@ -274,6 +274,28 @@ def pruning(model, sparse_mode='dense'):
                     
         model.load_state_dict(a)
 
+    elif sparse_mode == 'hcgs_pruning':
+        name_list = list()
+        para_list = list()
+
+        for name, para in model.named_parameters():
+            name_list.append(name)
+            para_list.append(para)
+
+        a = model.state_dict()
+        zero_cnt = 0
+        all_cnt = 0
+        for i, name in enumerate(name_list):
+            raw_w = para_list[i]
+            w_num = torch.nonzero(raw_w).size(0)
+
+            # apply the patterns
+            # mask = torch.tensor(cfg.pattern_mask[name])
+            mask = cfg.hcgs_mask[name].clone().detach()
+            p_w = raw_w * mask
+            a[name] = p_w
+        model.load_state_dict(a)
+
     else:
         assert(False, "sparse mode does not exist")
 
@@ -331,6 +353,57 @@ def generate_pattern_mask(model, patterns):
 
                             mask[ic_p * pattern_shape[0]:(ic_p+1) * pattern_shape[0],
                                  oc_p * pattern_shape[1]:(oc_p+1) * pattern_shape[1], k] = cfg.patterns[np.random.randint(0, pattern_num), :, :]
+
+                patterns_mask[name] = mask
+
+            else:
+                patterns_mask[name] = torch.ones_like(raw_w)
+        else:
+            patterns_mask[name] = torch.ones_like(raw_w)
+
+    # pattern_test = find_pattern_layer(patterns_mask[name], pattern_shape)
+    # print(pattern_test.values())
+    # print(len(pattern_test.values()))
+    # exit()
+    return patterns_mask
+
+
+#----------------description----------------#
+# description: sparsity = 1- (reserve_num1 / p_num_x) * (reserve_num2 / block_shape[0])
+# param {*} model
+# param {*} patterns
+# return {*} patterns_mask
+#-------------------------------------------#
+def generate_hcgs_mask(model, block_shape, reserve_num1, reserve_num2):
+    name_list = list()
+    para_list = list()
+    patterns_mask = dict()
+
+    for name, para in model.named_parameters():
+        name_list.append(name)
+        para_list.append(para)
+
+    a = model.state_dict()
+    for i, name in enumerate(name_list):
+        raw_w = para_list[i]
+        w_num = torch.nonzero(raw_w).size(0)
+        mask = torch.zeros_like(raw_w)
+        if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+            if raw_w.size(0) % block_shape[0] == 0 and raw_w.size(1) % block_shape[1] == 0:
+                p_num_x = raw_w.size(0) // block_shape[0]
+                p_num_y = raw_w.size(1) // block_shape[1]
+                for k in range(raw_w.size(2)):
+                    for oc in range(raw_w.size(1)):
+                        reserve1_list = list(combinations(range(p_num_x), reserve_num1))
+                        reserve1_list_len = len(reserve1_list)
+                        # print(np.random.randint(0, p_num_x))
+                        reserve1 = reserve1_list[int(np.random.randint(0, reserve1_list_len))]
+                        for r1 in reserve1:
+                            reserve2_list = list(combinations(range(block_shape[0]), reserve_num2))
+                            reserve2_list_len = len(reserve2_list)
+                            reserve2 = reserve2_list[int(np.random.randint(0, reserve2_list_len))]
+                            for r2 in reserve2:
+                                mask[oc, r1*16 + r2, k] = 1
 
                 patterns_mask[name] = mask
 
@@ -1522,7 +1595,7 @@ if __name__ == "__main__":
     compression_rate = [1, 2, 4, 8, 16, 32, 64]
     lstm_compression_rate = [32, 29.09, 26.67, 24.62, 22.86, 21.33, 20, 18.82, 17.78, 16.84, 16]
     wavenet_compression_rate = [8.00, 7.11, 6.40, 5.82, 5.33, 4.92, 4.57, 4.27, 4.00]
-    lstm_arch = [((512,512,1),12),((512,440,1),4),((1928,512,1),1),((48,512,1),1)]
+    lstm_arch = [((512,512,1),12),((512,440,1),4)]
     wavenet_arch = [((128,128,7),30),((128,128,1),15)]
     # cal_overhead(wavenet_arch,compression_rate)
     # cal_overhead(lstm_arch,compression_rate)

@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-18 21:36:00
+# LastEditTime : 2020-11-22 10:38:13
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 0.001 0-5, 0.0001
 #-------------------------------------------# 
@@ -52,6 +52,7 @@ def parse_args():
     parser.add_argument('--coo_para', type=str, help='[pt_shape0, pt_shape1, nnz]', default='8_8_32')
     parser.add_argument('--ptcoo_para', type=str, help='[pt_num, pt_shape0, pt_shape1, pt_nnz, coo_nnz]', default='16_16_16_128_64')
     parser.add_argument('--find_retrain_para', type=str, help='[pt_num, pt_shape0, pt_shape1, pt_nnz, coo_num, l or m]', default='16_4_4_2_1_m')
+    parser.add_argument('--hcgs_para', type=str, help='[block_shape0, block_shape1,reserve_num1, reserve_num2]', default='16, 16, 4, 8')
 
     parser.add_argument('--batch_size', type=int, help='1, 16, 32', default=32)
     parser.add_argument('--lr', type=float, help='0.001 for tensorflow', default=0.001)
@@ -103,8 +104,8 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         step_cnt = 0
         
         if epoch == 0:
-            print("find_pattern_start")
             if cfg.sparse_mode == 'find_retrain':
+                print("find_pattern_start")
                 cfg.fd_rtn_pattern_set = dict()
                 name_list = list()
                 para_list = list()
@@ -112,48 +113,27 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
                     name_list.append(name)
                     para_list.append(para)
                     
-                for i, name in enumerate(name_list):
-                    if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
-                        raw_w = para_list[i]
-                        if raw_w.size(0) == 128 and raw_w.size(1) == 128:
-                            cfg.fd_rtn_pattern_set[name], _ = find_top_k_by_kmeans(
-                                raw_w, cfg.pattern_num, cfg.pattern_shape, cfg.pattern_nnz, stride=cfg.pattern_shape)
-
-                    # print("find_pattern_end", name)
+                cnt = 0
+                if cfg.layer_or_model_wise == "l":
+                    for i, name in enumerate(name_list):
+                        if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+                            raw_w = para_list[i]
+                            if raw_w.size(0) == 128 and raw_w.size(1) == 128:
+                                cfg.fd_rtn_pattern_set[name], _ = find_top_k_by_kmeans(
+                                    raw_w, cfg.pattern_num, cfg.pattern_shape, cfg.pattern_nnz, stride=cfg.pattern_shape)
+                elif cfg.layer_or_model_wise == "m":
+                    for i, name in enumerate(name_list):
+                        if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+                            raw_w = para_list[i]
+                            if raw_w.size(0) == 128 and raw_w.size(1) == 128:
+                                if cnt == 0:
+                                    raw_w_all = raw_w
+                                else:
+                                    raw_w_all = torch.cat([raw_w_all, raw_w], 2)
+                                cnt += 1
+                    cfg.fd_rtn_pattern_set['all'], _ = find_top_k_by_kmeans(
+                        raw_w_all, cfg.pattern_num, cfg.pattern_shape, cfg.pattern_nnz, stride=cfg.pattern_shape)
                 print("find_pattern_end")
-                # cnt = 0
-            # if cfg.layer_or_model_wise == "l":
-            #     for i, name in enumerate(name_list):
-            #         if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
-            #             raw_w = para_list[i]
-            #             if raw_w.size(0) == 128 and raw_w.size(1) == 128:
-            #                 # if cnt == 0:
-            #                 #     raw_w_all = raw_w
-            #                 # else:
-            #                 #     raw_w_all = torch.cat([raw_w_all, raw_w], 2)
-            #                 # cnt += 1
-            #                 cfg.fd_rtn_pattern_set[name] = find_top_k_by_similarity(
-            #                     raw_w, cfg.fd_rtn_pattern_candidates, 
-            #                     (cfg.pattern_shape[0], cfg.pattern_shape[1]), cfg.pattern_num)
-            #             # print(name)
-            # elif cfg.layer_or_model_wise == "m":
-            #     for i, name in enumerate(name_list):
-            #         if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
-            #             raw_w = para_list[i]
-            #             if raw_w.size(0) == 128 and raw_w.size(1) == 128:
-            #                 if cnt == 0:
-            #                     raw_w_all = raw_w
-            #                 else:
-            #                     raw_w_all = torch.cat([raw_w_all, raw_w], 2)
-            #                 cnt += 1
-            #     cfg.fd_rtn_pattern_set['all'] = find_top_k_by_similarity(
-            #         raw_w_all, cfg.fd_rtn_pattern_candidates, 
-            #         (cfg.pattern_shape[0], cfg.pattern_shape[1]), cfg.pattern_num)
-            #             # print(name)
-
-            print("find top_k pattern finish")
-                    # else:
-                    #     cfg.fd_rtn_pattern_set[name] = [torch.ones(cfg.pattern_shape[0], cfg.pattern_shape[1])]
 
         _tp, _pred, _pos = 0, 0, 0
         for data in train_loader:
@@ -267,7 +247,7 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         else:
             not_better_cnt += 1
 
-        if not_better_cnt > 5:
+        if not_better_cnt > 3:
             write_excel(os.path.join(cfg.work_root, cfg.save_excel), 
                             cfg.exp_name, train_loss_list, val_loss_list)
             exit()
@@ -438,11 +418,11 @@ def main():
 
     # build train data
     vctk_train = VCTK(cfg, 'train')
-    train_loader = DataLoader(vctk_train, batch_size=cfg.batch_size, num_workers=8, shuffle=True, pin_memory=True)
+    train_loader = DataLoader(vctk_train, batch_size=cfg.batch_size, num_workers=4, shuffle=True, pin_memory=False)
 
     # train_loader = dataset.create("data/v28/train.record", cfg.batch_size, repeat=True)
     vctk_val = VCTK(cfg, 'val')
-    val_loader = DataLoader(vctk_val, batch_size=cfg.batch_size, num_workers=8, shuffle=False, pin_memory=True)
+    val_loader = DataLoader(vctk_val, batch_size=cfg.batch_size, num_workers=4, shuffle=False, pin_memory=False)
 
     # build model
     model = WaveNet(num_classes=28, channels_in=20, dilations=[1,2,4,8,16])
@@ -573,7 +553,7 @@ def main():
 
     elif cfg.sparse_mode == 'coo_pruning':
         cfg.coo_shape   = [int(args.coo_para.split('_')[0]), int(args.coo_para.split('_')[1])]
-        cfg.coo_nnz   = int(args.coo_para.split('_')[2])
+        cfg.coo_nnz   = float(args.coo_para.split('_')[2])
         # cfg.patterns = generate_pattern(pattern_num, pattern_shape, pattern_nnz)
         print(f'coo_pruning [{cfg.coo_shape[0]}, {cfg.coo_shape[1]}] {cfg.coo_nnz}')
         
@@ -596,6 +576,13 @@ def main():
         #                                 cfg.pattern_shape, cfg.pattern_nnz)
         print(f'find_retrain {cfg.pattern_num} [{cfg.pattern_shape[0]}, {cfg.pattern_shape[1]}] {cfg.pattern_nnz} {cfg.coo_num} {cfg.layer_or_model_wise}')
 
+    elif cfg.sparse_mode == 'hcgs_pruning':
+        print(args.pattern_para)
+        cfg.block_shape = [int(args.hcgs_para.split('_')[0]), int(args.hcgs_para.split('_')[1])]
+        cfg.reserve_num1 = int(args.hcgs_para.split('_')[2])
+        cfg.reserve_num2 = int(args.hcgs_para.split('_')[3])
+        print(f'hcgs_pruning {cfg.reserve_num1}/8 {cfg.reserve_num2}/16')
+        cfg.hcgs_mask = generate_hcgs_mask(model, cfg.block_shape, cfg.reserve_num1, cfg.reserve_num2)
 
     if args.vis_mask == True:
         name_list = list()
