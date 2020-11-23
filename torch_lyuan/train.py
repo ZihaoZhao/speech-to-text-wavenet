@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-22 10:38:13
+# LastEditTime : 2020-11-22 17:12:33
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 0.001 0-5, 0.0001
 #-------------------------------------------# 
@@ -247,7 +247,7 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         else:
             not_better_cnt += 1
 
-        if not_better_cnt > 3:
+        if not_better_cnt > 1:
             write_excel(os.path.join(cfg.work_root, cfg.save_excel), 
                             cfg.exp_name, train_loss_list, val_loss_list)
             exit()
@@ -553,7 +553,7 @@ def main():
 
     elif cfg.sparse_mode == 'coo_pruning':
         cfg.coo_shape   = [int(args.coo_para.split('_')[0]), int(args.coo_para.split('_')[1])]
-        cfg.coo_nnz   = float(args.coo_para.split('_')[2])
+        cfg.coo_nnz   = int(args.coo_para.split('_')[2])
         # cfg.patterns = generate_pattern(pattern_num, pattern_shape, pattern_nnz)
         print(f'coo_pruning [{cfg.coo_shape[0]}, {cfg.coo_shape[1]}] {cfg.coo_nnz}')
         
@@ -570,7 +570,7 @@ def main():
         cfg.pattern_num   = int(args.find_retrain_para.split('_')[0])
         cfg.pattern_shape = [int(args.find_retrain_para.split('_')[1]), int(args.find_retrain_para.split('_')[2])]
         cfg.pattern_nnz   = int(args.find_retrain_para.split('_')[3])
-        cfg.coo_num       = int(args.find_retrain_para.split('_')[4])
+        cfg.coo_num       = float(args.find_retrain_para.split('_')[4])
         cfg.layer_or_model_wise   = str(args.find_retrain_para.split('_')[5])
         # cfg.fd_rtn_pattern_candidates = generate_complete_pattern_set(
         #                                 cfg.pattern_shape, cfg.pattern_nnz)
