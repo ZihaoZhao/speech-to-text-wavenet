@@ -1097,6 +1097,15 @@ def find_top_k_by_kmeans(raw_w, pattern_num, pattern_shape, pattern_nnz, stride,
     # print(f"find_top_k_by_kmeans 1.move to cpu cost===={time.time()-start_t} s. \
     #     pattern_shape:{raw_w.shape},pattern_num:{pattern_num},pattern_nnz:{pattern_nnz}")
 
+
+    # # weight padding
+    # min_size = max(pattern_shape) * 16
+    # raw_w = zero_pad(raw_w, min_size,  w_type="array")
+
+    # # rearrange the ic,oc by pe array_shape[16*16]
+    # for k in range(raw_w.shape[2]):
+    #     raw_w[:, :, k] = rearrange(raw_w[:, :, k], w_type="array")
+
     if random == False:
         pattern_candidates = list()
         for k in range(raw_w.shape[2]):
@@ -1136,6 +1145,7 @@ def find_top_k_by_kmeans(raw_w, pattern_num, pattern_shape, pattern_nnz, stride,
             clf.fit(pattern_candidates)
             centers = clf.cluster_centers_
         elif kmeans_lib == 'fast':
+            pattern_candidates = pattern_candidates.to(torch.float32)
             kmeans = KMeans(n_clusters=pattern_num, mode='euclidean', verbose=1)
             labels = kmeans.fit_predict(pattern_candidates)
             centers = kmeans.centroids
@@ -1264,7 +1274,6 @@ def apply_patterns(raw_w, kernel, coo_num=0, random=False):
         raw_w_a = torch.abs(raw_w_a)
     else:
         raw_w_a = torch.abs(raw_w)
-    
     # pattern_set = [(torch.from_numpy(p)) for p in pattern_set]
     start_t = time.time()
     # pattern_shape = [pattern_set[0].size(0), pattern_set[0].size(1)]
@@ -1281,9 +1290,20 @@ def apply_patterns(raw_w, kernel, coo_num=0, random=False):
         raw_w_a = raw_w_a.unsqueeze(2)
         unsqueeze = True
 
+    # # weight padding
+    # min_size = 8 * 16
+    # raw_w_a = zero_pad(raw_w_a, min_size, "tensor")
+    # # rearrange the arrangement of weight
+    # for k in range(raw_w_a.shape[2]):
+    #     raw_w_a[:, :, k] = rearrange(raw_w_a[:, :, k])
+
+
     mask = torch.zeros_like(raw_w_a).cuda()
     # 7,128,128
     raw_w_a = raw_w_a.permute(2, 0, 1)
+
+    if raw_w_a.device.type == 'cpu':
+        raw_w_a = raw_w_a.cuda()
     
     out = F.conv2d(raw_w_a.unsqueeze(1), kernel, stride=stride, padding=0)
 
@@ -1312,10 +1332,65 @@ def apply_patterns(raw_w, kernel, coo_num=0, random=False):
             abs(coo_w) < thre, zero, one)
         mask += coo_mask
 
+    # # recover the arrangement of mask
+    # for k in range(mask.shape[2]):
+    #     mask[:, :, k] = recoverorder(mask[:, :, k])
+    # # de zero_pad of mask. not finish yet
+
     if unsqueeze == True:
         mask = mask.squeeze(2)
     # exit()
     return mask
+
+
+def rearrange(weight, pe_row=16, pe_col=16, w_type="tensor"):
+    if w_type == "array":
+        weight = np.concatenate(np.split(weight.reshape(weight.shape[0]//pe_col,-1),pe_row,1),0).T     
+        weight = np.concatenate(np.split(weight.reshape(weight.shape[0]//pe_row,-1),pe_col,1),0).T
+    elif w_type == "tensor":
+        weight = torch.cat(torch.split(weight.reshape(weight.shape[0]//pe_row,-1),weight.shape[0],1),0).t()
+        weight = torch.cat(torch.split(weight.reshape(weight.shape[0]//pe_row,-1),weight.shape[0],1),0).t()
+    else:
+        print("Weight type Error:", w_type)
+    return weight
+
+def recoverorder(weight, pe_row=16, pe_col=16, w_type="tensor"):
+    # w_type: "tensor" or "array"
+    if w_type == "array":
+        weight = np.concatenate(np.split(weight,pe_col,0),1).reshape(weight.shape[0], -1).T
+        weight = np.concatenate(np.split(weight,pe_row,0),1).reshape(weight.shape[0], -1).T
+    elif w_type == "tensor":
+        weight = torch.cat(torch.split(weight,weight.shape[0]//pe_col,0),1).reshape(weight.shape[0], -1).t()
+        weight = torch.cat(torch.split(weight,weight.shape[0]//pe_row,0),1).reshape(weight.shape[0], -1).t()
+    else:
+        print("Weight type Error:", w_type)
+    return weight
+
+def zero_pad(x, min_size=128, w_type="array"):
+    unsqueeze = False
+    if len(x.shape)==2:
+        if w_type == "array":
+            x = np.expand_dims(x, 2)
+        elif w_type == "tensor":
+            x = x.unsqueeze(2)
+        unsqueeze = True
+    # w_type: "tensor" or "array"
+    old_shape = list(x.shape)
+    new_shape = list(x.shape)
+    for dim in range(len(old_shape)-1):
+        if old_shape[dim]%min_size:
+            new_shape[dim] = ((old_shape[dim]//min_size)+1)*min_size
+    if w_type == "array":
+        new_x = np.zeros(new_shape)
+        new_x[:x.shape[0], :x.shape[1], :] = x
+    elif w_type == "tensor":
+        new_x = torch.zeros(new_shape)
+        new_x[:x.shape[0], :x.shape[1], :] = x
+    else:
+        print("Weight type Error:", w_type)
+    if unsqueeze:
+        new_x = new_x.squeeze()
+    return new_x
 
 
 # eg. math_comb(64, 2)
