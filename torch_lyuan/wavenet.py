@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-03 08:18:32
+# LastEditTime : 2020-12-21 20:42:27
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/wavenet.py
 # Description  : 
 #-------------------------------------------# 
@@ -85,7 +85,9 @@ class WaveNet(nn.Module):
         self.resnet_block_1 = nn.ModuleList([ResnetBlock(dilation, channels_out, channels_out) for dilation in dilations])
         self.resnet_block_2 = nn.ModuleList([ResnetBlock(dilation, channels_out, channels_out) for dilation in dilations])
         self.conv1d_out = nn.Conv1d(channels_out, channels_out, kernel_size=1, bias=False)
+        self.bn2 = nn.BatchNorm1d(channels_out, affine=True, track_running_stats=False)
         self.get_logits = nn.Conv1d(in_channels=channels_out, out_channels=num_classes, kernel_size=1)
+        # self.bn3 = nn.BatchNorm1d(num_classes, affine=True, track_running_stats=False)
 
     def forward(self, inputs):
         x = self.bn(self.conv1d(inputs))
@@ -102,9 +104,11 @@ class WaveNet(nn.Module):
             x, out = layer(x)
             outs += out
 
-        outs = torch.tanh(self.bn(self.conv1d_out(outs)))
-
+        outs = torch.tanh(self.bn2(self.conv1d_out(outs)))
         logits = self.get_logits(outs)
+
+        # logits = self.get_logits(outs)
+
 
         return logits
 
@@ -112,7 +116,7 @@ class WaveNet(nn.Module):
 
 
 if __name__ == '__main__':
-    model = WaveNet(num_classes=27, channels_in=20)
+    model = WaveNet(num_classes=27, channels_in=40)
     model.eval()
     input = torch.rand([4,16,128]) # [4,16,128] may be too short. maybe there is some error in padding.
     print(model(input))

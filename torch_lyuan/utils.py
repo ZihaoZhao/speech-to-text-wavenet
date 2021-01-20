@@ -14,7 +14,7 @@ def collate_fn_(batch_data, max_len=40000):
         return audio
 
 class Data:
-  num_channel = 20
+  num_channel = 40
   vocabulary = [' ', 'a', 'b', 'c', 'd', 'e', 'f', 'g',
                 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q',
                 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '<EMP>']
@@ -33,7 +33,7 @@ def read_wave(filepath):
     wave = wave[::3]
 
     # get mfcc feature
-    mfcc = librosa.feature.mfcc(wave, sr=16000)
+    mfcc = librosa.feature.mfcc(wave, sr=16000, n_mfcc=Data.num_channel)
 
     #   wave, sr = librosa.load(filepath, mono=True, sr=Data.sample_rate)
     #   mfcc = librosa.feature.mfcc(wave, sr=sr, n_mfcc=Data.num_channel)

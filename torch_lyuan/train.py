@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-22 17:12:33
+# LastEditTime : 2020-12-21 22:14:29
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 0.001 0-5, 0.0001
 #-------------------------------------------# 
@@ -54,7 +54,7 @@ def parse_args():
     parser.add_argument('--find_retrain_para', type=str, help='[pt_num, pt_shape0, pt_shape1, pt_nnz, coo_num, l or m]', default='16_4_4_2_1_m')
     parser.add_argument('--hcgs_para', type=str, help='[block_shape0, block_shape1,reserve_num1, reserve_num2]', default='16, 16, 4, 8')
 
-    parser.add_argument('--batch_size', type=int, help='1, 16, 32', default=32)
+    parser.add_argument('--batch_size', type=int, help='1, 16, 32', default=16)
     parser.add_argument('--lr', type=float, help='0.001 for tensorflow', default=0.001)
 
     parser.add_argument('--load_from', type=str, help='.pth', default="/z")
@@ -114,16 +114,47 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
                     para_list.append(para)
                     
                 cnt = 0
+
+
+                patterns_dir = os.path.join(cfg.workdir, 'patterns')
+                if not os.path.exists(patterns_dir):
+                    os.mkdir(patterns_dir)
+
+                weights_dir = os.path.join(cfg.workdir, 'weights_save')
+                if not os.path.exists(weights_dir):
+                    os.mkdir(weights_dir)
+
                 if cfg.layer_or_model_wise == "l":
                     for i, name in enumerate(name_list):
-                        if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+                        if name.split(".")[-2] != "bn" \
+                            and name.split(".")[-2] != "bn2" \
+                            and name.split(".")[-2] != "bn3" \
+                            and name.split(".")[-1] != "bias":
                             raw_w = para_list[i]
+                            print(name, raw_w.size())
                             if raw_w.size(0) == 128 and raw_w.size(1) == 128:
                                 cfg.fd_rtn_pattern_set[name], _ = find_top_k_by_kmeans(
                                     raw_w, cfg.pattern_num, cfg.pattern_shape, cfg.pattern_nnz, stride=cfg.pattern_shape)
+                            elif raw_w.size(0) == 128 and raw_w.size(1) == 40:
+                                # raw_w_pad = torch.cat([raw_w, torch.zeros(raw_w.size(0), 4, raw_w.size(2)).cuda()], 1)
+                                cfg.fd_rtn_pattern_set[name], _ = find_top_k_by_kmeans(
+                                    raw_w, cfg.pattern_num, cfg.pattern_shape, cfg.pattern_nnz, stride=cfg.pattern_shape)
+                            elif raw_w.size(0) == 28 and raw_w.size(1) == 128:
+                                raw_w_pad = torch.cat([raw_w, torch.zeros(4, raw_w.size(1), raw_w.size(2)).cuda()], 0)
+                                cfg.fd_rtn_pattern_set[name], _ = find_top_k_by_kmeans(
+                                    raw_w_pad, cfg.pattern_num, cfg.pattern_shape, cfg.pattern_nnz, stride=cfg.pattern_shape)
+                            print(name, cfg.fd_rtn_pattern_set[name].size())
+                            pattern_save = np.array(cfg.fd_rtn_pattern_set[name].cpu()).transpose((0, 1, 3, 2))
+                            # raw_w_save = np.array(raw_w.cpu().detach())
+                            np.savetxt(os.path.join(patterns_dir, name + '.txt'), pattern_save.flatten())
+                    #         np.savetxt(os.path.join(weights_dir, name + '.txt'), raw_w_save.transpose((2, 1, 0)).flatten())
+                    # exit()
                 elif cfg.layer_or_model_wise == "m":
                     for i, name in enumerate(name_list):
-                        if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+                        if name.split(".")[-2] != "bn" \
+                            and name.split(".")[-2] != "bn2" \
+                            and name.split(".")[-2] != "bn3" \
+                            and name.split(".")[-1] != "bias":
                             raw_w = para_list[i]
                             if raw_w.size(0) == 128 and raw_w.size(1) == 128:
                                 if cnt == 0:
@@ -418,14 +449,14 @@ def main():
 
     # build train data
     vctk_train = VCTK(cfg, 'train')
-    train_loader = DataLoader(vctk_train, batch_size=cfg.batch_size, num_workers=4, shuffle=True, pin_memory=False)
+    train_loader = DataLoader(vctk_train, batch_size=cfg.batch_size, num_workers=4, shuffle=True, pin_memory=True)
 
     # train_loader = dataset.create("data/v28/train.record", cfg.batch_size, repeat=True)
     vctk_val = VCTK(cfg, 'val')
-    val_loader = DataLoader(vctk_val, batch_size=cfg.batch_size, num_workers=4, shuffle=False, pin_memory=False)
+    val_loader = DataLoader(vctk_val, batch_size=cfg.batch_size, num_workers=4, shuffle=False, pin_memory=True)
 
     # build model
-    model = WaveNet(num_classes=28, channels_in=20, dilations=[1,2,4,8,16])
+    model = WaveNet(num_classes=28, channels_in=40, dilations=[1,2,4,8,16])
     model = nn.DataParallel(model)
     model.cuda()
 
@@ -438,7 +469,10 @@ def main():
 
     a = model.state_dict()
     for i, name in enumerate(name_list):
-        if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+        if name.split(".")[-2] != "bn" \
+            and name.split(".")[-2] != "bn2" \
+            and name.split(".")[-2] != "bn3" \
+            and name.split(".")[-1] != "bias":
             raw_w = para_list[i]
             nn.init.xavier_normal_(raw_w, gain=1.0)
             a[name] = raw_w
@@ -506,7 +540,10 @@ def main():
 
         a = model.state_dict()
         for i, name in enumerate(name_list):
-            if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+            if name.split(".")[-2] != "bn" \
+                and name.split(".")[-2] != "bn2" \
+                and name.split(".")[-2] != "bn3" \
+                and name.split(".")[-1] != "bias":
                 raw_w = para_list[i]
                 if raw_w.size(0) == 128 and raw_w.size(1) == 128:
                     patterns, pattern_match_num, pattern_coo_nnz, pattern_nnz, pattern_inner_nnz \
@@ -592,7 +629,10 @@ def main():
             para_list.append(para)
 
         for i, name in enumerate(name_list):
-            if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+            if name.split(".")[-2] != "bn" \
+                and name.split(".")[-2] != "bn2" \
+                and name.split(".")[-2] != "bn3" \
+                and name.split(".")[-1] != "bias":
                 raw_w = para_list[i]
 
                 zero = torch.zeros_like(raw_w)

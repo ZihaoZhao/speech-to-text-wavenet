@@ -58,7 +58,10 @@ def pruning(model, sparse_mode='dense'):
             raw_w = para_list[i]
             # raw_w.topk()
             zero = torch.zeros_like(raw_w)
-            if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+            if name.split(".")[-2] != "bn" \
+                and name.split(".")[-2] != "bn2" \
+                and name.split(".")[-2] != "bn3" \
+                and name.split(".")[-1] != "bias":
                 p_w = torch.where(abs(raw_w) < cfg.pruning_thre, zero, raw_w)
                 zero_cnt += torch.nonzero(p_w).size()[0]
                 all_cnt += torch.nonzero(raw_w).size()[0]
@@ -81,7 +84,10 @@ def pruning(model, sparse_mode='dense'):
             raw_w = para_list[i]
             w_num = torch.nonzero(raw_w).size(0)
             zero_num = int(w_num * cfg.sparsity)
-            if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+            if name.split(".")[-2] != "bn" \
+                and name.split(".")[-2] != "bn2" \
+                and name.split(".")[-2] != "bn3" \
+                and name.split(".")[-1] != "bias":
                 value, _ = torch.topk(raw_w.abs().flatten(), w_num - zero_num)
                 thre = abs(value[-1])
                 zero = torch.zeros_like(raw_w)
@@ -136,7 +142,10 @@ def pruning(model, sparse_mode='dense'):
 
             # apply the patterns
             mask = torch.zeros_like(raw_w)
-            if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+            if name.split(".")[-2] != "bn" \
+                and name.split(".")[-2] != "bn2" \
+                and name.split(".")[-2] != "bn3" \
+                and name.split(".")[-1] != "bias":
                 # print(name, raw_w.size(), pattern_shape)
                 if raw_w.size(0) % pattern_shape[0] == 0 and raw_w.size(1) % pattern_shape[1] == 0:
                     for k in range(raw_w.size(2)):
@@ -198,7 +207,10 @@ def pruning(model, sparse_mode='dense'):
 
             # apply the patterns
             # mask = torch.zeros_like(raw_w)
-            if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+            if name.split(".")[-2] != "bn" \
+                and name.split(".")[-2] != "bn2" \
+                and name.split(".")[-2] != "bn3" \
+                and name.split(".")[-1] != "bias":
                 # print(name, raw_w.size(), pattern_shape)
                 if raw_w.size(0) % pattern_shape[0] == 0 and raw_w.size(1) % pattern_shape[1] == 0:
                     for k in range(raw_w.size(2)):
@@ -245,9 +257,24 @@ def pruning(model, sparse_mode='dense'):
         if cfg.layer_or_model_wise == "l":
             for i, name in enumerate(name_list):
                 raw_w = para_list[i]
-                if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
-                    if raw_w.size(0) == 128 and raw_w.size(1) == 128:
+                if name.split(".")[-2] != "bn" \
+                    and name.split(".")[-2] != "bn2" \
+                    and name.split(".")[-2] != "bn3" \
+                    and name.split(".")[-1] != "bias":
+                    if raw_w.size(0) == 128 and raw_w.size(1) == 40:
+                        # raw_w_pad = torch.cat([raw_w, torch.zeros(raw_w.size(0), 4, raw_w.size(2)).cuda()], 1)
                         mask = apply_patterns(raw_w, cfg.fd_rtn_pattern_set[name], coo_num=cfg.coo_num)
+                        mask =  mask[:, 0:raw_w.size(1), :]
+                        p_w = raw_w * mask
+                        a[name] = p_w
+                    elif raw_w.size(0) == 128 and raw_w.size(1) == 128:
+                        mask = apply_patterns(raw_w, cfg.fd_rtn_pattern_set[name], coo_num=cfg.coo_num)
+                        p_w = raw_w * mask
+                        a[name] = p_w
+                    elif raw_w.size(0) == 28 and raw_w.size(1) == 128:
+                        raw_w_pad = torch.cat([raw_w, torch.zeros(4, raw_w.size(1), raw_w.size(2)).cuda()], 0)
+                        mask = apply_patterns(raw_w_pad, cfg.fd_rtn_pattern_set[name], coo_num=cfg.coo_num)
+                        mask =  mask[0:raw_w.size(0), :, :]
                         p_w = raw_w * mask
                         a[name] = p_w
                     else:
@@ -258,7 +285,10 @@ def pruning(model, sparse_mode='dense'):
         elif cfg.layer_or_model_wise == "m":
             for i, name in enumerate(name_list):
                 raw_w = para_list[i]
-                if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+                if name.split(".")[-2] != "bn" \
+                    and name.split(".")[-2] != "bn2" \
+                    and name.split(".")[-2] != "bn3" \
+                    and name.split(".")[-1] != "bias":
                     if raw_w.size(0) == 128 and raw_w.size(1) == 128:
                         mask = apply_patterns(raw_w, cfg.fd_rtn_pattern_set['all'], coo_num=cfg.coo_num)
                         # ones = torch.ones_like(mask)
@@ -341,7 +371,10 @@ def generate_pattern_mask(model, patterns):
         w_num = torch.nonzero(raw_w).size(0)
 
         mask = torch.zeros_like(raw_w)
-        if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+        if name.split(".")[-2] != "bn" \
+            and name.split(".")[-2] != "bn2" \
+            and name.split(".")[-2] != "bn3" \
+            and name.split(".")[-1] != "bias":
             if raw_w.size(0) % pattern_shape[0] == 0 and raw_w.size(1) % pattern_shape[1] == 0:
                 for k in range(raw_w.size(2)):
                     assert raw_w.size(
@@ -388,7 +421,10 @@ def generate_hcgs_mask(model, block_shape, reserve_num1, reserve_num2):
         raw_w = para_list[i]
         w_num = torch.nonzero(raw_w).size(0)
         mask = torch.zeros_like(raw_w)
-        if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+        if name.split(".")[-2] != "bn" \
+            and name.split(".")[-2] != "bn2" \
+            and name.split(".")[-2] != "bn3" \
+            and name.split(".")[-1] != "bias":
             if raw_w.size(0) % block_shape[0] == 0 and raw_w.size(1) % block_shape[1] == 0:
                 p_num_x = raw_w.size(0) // block_shape[0]
                 p_num_y = raw_w.size(1) // block_shape[1]
@@ -446,7 +482,10 @@ def generate_pattern_mask_layerwise(model, pattern_num, pattern_shape, pattern_n
         w_num = torch.nonzero(raw_w).size(0)
 
         mask = torch.zeros_like(raw_w)
-        if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+        if name.split(".")[-2] != "bn" \
+            and name.split(".")[-2] != "bn2" \
+            and name.split(".")[-2] != "bn3" \
+            and name.split(".")[-1] != "bias":
             if raw_w.size(0) % pattern_shape[0] == 0 and raw_w.size(1) % pattern_shape[1] == 0:
                 for k in range(raw_w.size(2)):
                     assert raw_w.size(
@@ -601,7 +640,10 @@ def find_pattern_model(model, pattern_shape):
         para_list.append(para)
 
     for i, name in enumerate(name_list):
-        if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+        if name.split(".")[-2] != "bn" \
+            and name.split(".")[-2] != "bn2" \
+            and name.split(".")[-2] != "bn3" \
+            and name.split(".")[-1] != "bias":
             raw_w = para_list[i]
             new_patterns = find_pattern_layer(raw_w, pattern_shape)
             patterns = add_dict(patterns, new_patterns)
@@ -670,7 +712,10 @@ def cal_sparsity(model):
     all_cnt = 0
     for i, name in enumerate(name_list):
         w = para_list[i]
-        if name.split(".")[-2] != "bn" and name.split(".")[-1] != "bias":
+        if name.split(".")[-2] != "bn" \
+            and name.split(".")[-2] != "bn2" \
+            and name.split(".")[-2] != "bn3" \
+            and name.split(".")[-1] != "bias":
             if w.size(0) == 128 and w.size(1) == 128:
                 zero_cnt += w.flatten().size()[0] - torch.nonzero(w).size()[0]
                 all_cnt += w.flatten().size()[0]

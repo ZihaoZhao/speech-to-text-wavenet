@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-11 15:28:41
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-11-03 09:01:53
+# LastEditTime : 2020-12-21 20:42:35
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/dataset.py
 # Description  : 
 #-------------------------------------------# 
@@ -65,13 +65,21 @@ class VCTK(Dataset):
             filenames = self.test_filenames[idx]
         wave_path = self.cfg.dataset + filenames[0]
         txt_path = self.cfg.dataset + filenames[1]
-        wave_tmp = utils.read_wave(wave_path) # numpy
+        try:
+            text_tmp = utils.read_txt(txt_path)  # list
+            wave_tmp = utils.read_wave(wave_path) # numpy
+        except OSError:
+            print(txt_path)
+            print(wave_path)
+            return self.__getitem__(0)
         wave_tmp = torch.from_numpy(wave_tmp)
-        wave = torch.zeros([20,self.max_wave]) # 512 may be too short, if error,fix it
+        wave = torch.zeros([40, self.max_wave]) # 512 may be too short, if error,fix it
         length_wave = wave_tmp.shape[1]
+        # print(length_wave)
         wave[:,:length_wave] = wave_tmp
+        # print(txt_path)
 
-        text_tmp = utils.read_txt(txt_path)  # list
+
         while 27 in text_tmp:
             text_tmp.remove(27)
 
@@ -82,7 +90,7 @@ class VCTK(Dataset):
         name = filenames[0].split('/')[-1]
 
         if length_text >= length_wave:
-            sample = {'name':name, 'wave':torch.zeros([20, self.max_wave],dtype=torch.float), 'text':torch.zeros([self.max_text],dtype=torch.float),
+            sample = {'name':name, 'wave':torch.zeros([40, self.max_wave],dtype=torch.float), 'text':torch.zeros([self.max_text],dtype=torch.float),
                     'length_wave':self.max_wave, 'length_text':self.max_text}
         else:
             sample = {'name':name, 'wave':wave, 'text':text,
@@ -116,13 +124,13 @@ if __name__ == '__main__':
     max_wave = 0
     max_text = 0
     for i in range(length):
-        tmp = vctk[i]['length_wave']
-        if tmp>max_wave:
-            max_length = tmp
-        tmp = vctk[i]['length_text']
-        if tmp > max_text:
-            max_length = tmp
-    print(f'val set {max_wave}, {max_text}')
+        length_wave = vctk[i]['length_wave']
+        if length_wave > max_wave:
+            max_wave = length_wave
+        length_text = vctk[i]['length_text']
+        if length_text > max_text:
+            max_text = length_text
+        print(f'val set {i}， {length}, {max_wave}, {max_text}, {length_wave}, {length_text}')
 
 
 
