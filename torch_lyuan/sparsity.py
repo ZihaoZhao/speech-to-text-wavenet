@@ -19,11 +19,11 @@ import math
 import time
 # from fast_pytorch_kmeans import KMeans
 
-# import sklearn.cluster._kmeans
+import sklearn.cluster._kmeans
 
-# from sklearn.cluster import k_means
-# from kmeans_pytorch import kmeans
-# import scipy.sparse
+from sklearn.cluster import k_means
+from kmeans_pytorch import kmeans
+import scipy.sparse
 
 from itertools import combinations, permutations
 from collections import defaultdict

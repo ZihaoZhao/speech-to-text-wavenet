@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-12-21 22:14:29
+# LastEditTime : 2021-02-23 21:10:00
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 0.001 0-5, 0.0001
 #-------------------------------------------# 
@@ -69,6 +69,7 @@ def parse_args():
     parser.add_argument('--save_pattern_count_excel', type=str, help='exp.xls', default="pattern_count.xls")
 
     parser.add_argument('--test_acc', action='store_true', help='test_acc', default=False)
+    parser.add_argument('--test_acc_cmodel', action='store_true', help='test_acc_cmodel', default=False)
     parser.add_argument('--test_acc_excel', type=str, help='exp.xls', default="test_acc.xls")
 
     args = parser.parse_args()
@@ -278,10 +279,10 @@ def train(train_loader, scheduler, model, loss_fn, val_loader, writer=None):
         else:
             not_better_cnt += 1
 
-        if not_better_cnt > 1:
+        if not_better_cnt > 3:
             write_excel(os.path.join(cfg.work_root, cfg.save_excel), 
                             cfg.exp_name, train_loss_list, val_loss_list)
-            exit()
+            # exit()
 
 def validate(val_loader, model, loss_fn):    
     decoder_vocabulary = utils.Data.decoder_vocabulary
@@ -340,7 +341,7 @@ def validate(val_loader, model, loss_fn):
             step_cnt += 1
             # if cnt % 10 == 0:
     print("Val step", step_cnt, "/", len(val_loader),
-            ", loss: ", round(float(_loss.data/len(val_loader)), 5))
+            ", loss: ", round(float(_loss/len(val_loader)), 5))
     # print("Val tp:", _tp, ",pred:", _pred, ",pos:", _pos, ",f1:", f1)
 
     return _loss/len(val_loader)
@@ -366,9 +367,15 @@ def test_acc(val_loader, model, loss_fn):
     _loss = 0.0
     step_cnt = 0
     tps, preds, poses = 0, 0, 0
+    f_cnt = 0
     with torch.no_grad():
         for data in val_loader:
             wave = data['wave'].cuda()  # [1, 128, 109]
+            if 1:
+                print(data['wave'].size())
+                np.savetxt("/zhzhao/dataset/VCTK/c_model_input_txt/"+str(f_cnt)+".txt", data['wave'].flatten())
+                print(f_cnt)
+                f_cnt += 1
             logits = model(wave)
             logits = logits.permute(2, 0, 1)
             logits = F.log_softmax(logits, dim=2)
@@ -413,6 +420,116 @@ def test_acc(val_loader, model, loss_fn):
     return f1, _loss/len(val_loader), tps, preds, poses
 
 
+def test_acc_cmodel(val_loader, model, loss_fn):    
+    decoder_vocabulary = utils.Data.decoder_vocabulary
+    vocabulary = utils.Data.vocabulary
+    decoder = CTCBeamDecoder(
+        decoder_vocabulary,
+        #"_abcdefghijklmopqrstuvwxyz_",
+        model_path=None,
+        alpha=0,
+        beta=0,
+        cutoff_top_n=40,
+        cutoff_prob=1.0,
+        beam_width=100,
+        num_processes=4,
+        blank_id=27,
+        log_probs_input=True
+    )
+    model.eval()
+    _loss = 0.0
+    _loss2 = 0.0
+    step_cnt = 0
+    tps, preds, poses = 0, 0, 0
+    tps2, preds2, poses2 = 0, 0, 0
+    f_cnt = 0
+    with torch.no_grad():
+        for data in val_loader:
+            wave = data['wave'].cuda()  # [1, 128, 109]
+            # if 1:
+            #     print(data['wave'].size())
+            #     np.savetxt("/zhzhao/dataset/VCTK/c_model_input_txt/"+str(f_cnt)+".txt", data['wave'].flatten())
+            #     print(f_cnt)
+            logits = model(wave)
+            logits_cmodel = torch.from_numpy(np.loadtxt("/zhzhao/dataset/VCTK/c_model_output_txt/"+str(f_cnt)+".txt").reshape((1, 28, 720)))
+            # print(logits_cmodel.reshape((28, 1, 720)))
+            f_cnt += 1
+            logits = logits.permute(2, 0, 1)
+            logits_cmodel = logits_cmodel.permute(2, 0, 1)
+            print(logits)
+            print(logits_cmodel)
+            # logits_cmodel = logits_cmodel.permute(2, 0, 1)
+            logits = F.log_softmax(logits, dim=2)
+            logits_cmodel = F.log_softmax(logits_cmodel, dim=2)
+            if data['text'].size(0) == 1:
+                for i in range(1):
+                    if i == 0:
+                        text = data['text'][i][0:data['length_text'][i]].cuda()
+                        # print(data['text'].size())
+                        # print(data['length_text'][i])
+                    else:
+                        text = torch.cat([text, 
+                                    data['text'][i][0: data['length_text'][i]].cuda()])
+            else:
+                continue
+            loss = loss_fn(logits, text, data['length_wave'], data['length_text'])
+            loss2 = loss_fn(logits_cmodel, text, data['length_wave'], data['length_text'])
+            _loss += loss.data
+            _loss2 += loss2.data
+            # print(_loss)
+            # print(_loss2)
+            for i in range(logits.size(1)):
+                logit = logits[:data['length_wave'][i], i:i+1, :]
+                beam_results, beam_scores, timesteps, out_lens = decoder.decode(logit.permute(1, 0, 2))
+
+                voc = np.tile(vocabulary, (1, 1))
+                pred = np.take(voc, beam_results[0][0][:out_lens[0][0]].data.numpy())
+                text_np = np.take(voc, data['text'][i][0:data['length_text'][i]].cpu().numpy().astype(int))
+
+                pred = [pred]
+                text_np = [text_np]
+                # print(utils.cvt_np2string(pred))
+                # print(utils.cvt_np2string(text_np))
+
+                tp, pred, pos = utils.evalutes(utils.cvt_np2string(pred), utils.cvt_np2string(text_np))
+                tps += tp
+                preds += pred
+                poses += pos
+            f1 = 2 * tps / (preds + poses + 1e-10)
+
+            for i in range(logits_cmodel.size(1)):
+                logit = logits_cmodel[:data['length_wave'][i], i:i+1, :]
+                beam_results, beam_scores, timesteps, out_lens = decoder.decode(logit.permute(1, 0, 2))
+
+                voc = np.tile(vocabulary, (1, 1))
+                pred = np.take(voc, beam_results[0][0][:out_lens[0][0]].data.numpy())
+                text_np = np.take(voc, data['text'][i][0:data['length_text'][i]].cpu().numpy().astype(int))
+
+                pred = [pred]
+                text_np = [text_np]
+                # print(utils.cvt_np2string(pred))
+                # print(utils.cvt_np2string(text_np))
+
+                tp2, pred2, pos2 = utils.evalutes(utils.cvt_np2string(pred), utils.cvt_np2string(text_np))
+                tps2 += tp2
+                preds2 += pred2
+                poses2 += pos2
+            f12 = 2 * tps2 / (preds2 + poses2 + 1e-10)
+            
+            step_cnt += 1
+            print("Val step", step_cnt, "/", len(val_loader),
+                    ", loss: ", round(float(_loss.data/step_cnt), 5))
+            print("Val tps:", tps, ",preds:", preds, ",poses:", poses, ",f1:", f1)
+            print("C Model Val step", step_cnt, "/", len(val_loader),
+                    ", loss: ", round(float(_loss2.data/step_cnt), 5))
+            print("C Model Val tps:", tps2, ",preds:", preds2, ",poses:", poses2, ",f1:", f12)
+            print(" ")
+            # if f_cnt > 6 :
+            #     break
+
+    return f1, _loss/len(val_loader), tps, preds, poses
+
+
 
 def main():
     args = parse_args()
@@ -453,7 +570,10 @@ def main():
 
     # train_loader = dataset.create("data/v28/train.record", cfg.batch_size, repeat=True)
     vctk_val = VCTK(cfg, 'val')
-    val_loader = DataLoader(vctk_val, batch_size=cfg.batch_size, num_workers=4, shuffle=False, pin_memory=True)
+    if args.test_acc_cmodel == True:
+        val_loader = DataLoader(vctk_val, batch_size=1, num_workers=4, shuffle=False, pin_memory=True)
+    else:
+        val_loader = DataLoader(vctk_val, batch_size=cfg.batch_size, num_workers=4, shuffle=False, pin_memory=True)
 
     # build model
     model = WaveNet(num_classes=28, channels_in=40, dilations=[1,2,4,8,16])
@@ -493,12 +613,14 @@ def main():
     if cfg.resume and os.path.exists(cfg.workdir + '/weights/best.pth'):
         model.load_state_dict(torch.load(cfg.workdir + '/weights/best.pth'), strict=True)
         print("loading", cfg.workdir + '/weights/best.pth')
+        cfg.load_from = cfg.workdir + '/weights/best.pth'
 
     if args.test_acc == True:
         if os.path.exists(cfg.load_from):
             model.load_state_dict(torch.load(cfg.load_from), strict=True)
             print("loading", cfg.load_from)
         else:
+            print("Error: model file not exists, ", cfg.load_from)
             exit()
     else:
         if os.path.exists(cfg.load_from):
@@ -659,6 +781,14 @@ def main():
     # scheduler = optim.lr_scheduler.MultiStepLR(train_step, milestones=[50, 150, 250], gamma=0.5)
     if args.test_acc == True:
         f1, val_loss, tps, preds, poses = test_acc(val_loader, model, loss_fn)
+        # f1, val_loss, tps, preds, poses = test_acc(val_loader, model, loss_fn)
+        write_test_acc(os.path.join(cfg.work_root, args.test_acc_excel), 
+                        cfg.exp_name, f1, val_loss, tps, preds, poses)
+        exit()
+
+    if args.test_acc_cmodel == True:
+        f1, val_loss, tps, preds, poses = test_acc_cmodel(val_loader, model, loss_fn)
+        # f1, val_loss, tps, preds, poses = test_acc(val_loader, model, loss_fn)
         write_test_acc(os.path.join(cfg.work_root, args.test_acc_excel), 
                         cfg.exp_name, f1, val_loss, tps, preds, poses)
         exit()

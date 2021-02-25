@@ -26,7 +26,7 @@ exp_name = 'dense_32'
 vis_dir = '/zhzhao/code/wavenet_torch/torch_lyuan/vis'
 
 # path setting
-dataset = '/zhzhao/VCTK'
+dataset = '/zhzhao/dataset/VCTK'
 datalist = '/zhzhao/code/wavenet_torch/data/list.json'
 
 # sparse_mode = 'thre_pruning'#'dense'#'thre_pruning'

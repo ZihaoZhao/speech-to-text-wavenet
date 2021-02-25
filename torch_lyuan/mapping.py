@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-12-20 11:52:22
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-12-21 22:24:31
+# LastEditTime : 2021-02-25 10:01:49
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/mapping.py
 # Description  : 
 #-------------------------------------------# 
@@ -35,9 +35,9 @@ import time
 import argparse
 from write_excel import *
 
-model_pth = "/zhzhao/code/wavenet_torch/torch_lyuan/exp_result/fd_rtnl_16_8_8_4_0_l_bn_ok/debug/weights/best.pth"
-pattern_dir = "/zhzhao/code/wavenet_torch/torch_lyuan/exp_result/fd_rtnl_16_8_8_4_0_l_bn_ok/debug/patterns"
-save_dir = "/zhzhao/code/wavenet_torch/torch_lyuan/exp_result/fd_rtnl_16_8_8_4_0_l_bn_ok/debug/weights/weight_txt"
+model_pth = "/zhzhao/code/wavenet_torch/torch_lyuan/exp_result/dense_3/debug/weights/best.pth"
+pattern_dir = "/zhzhao/code/wavenet_torch/torch_lyuan/exp_result/dense_3/debug/patterns"
+save_dir = "/zhzhao/code/wavenet_torch/torch_lyuan/exp_result/dense_3/debug/weights/weight_txt"
 # model_pth = "/zhzhao/code/wavenet_torch/torch_lyuan/exp_result/fd_rtnl_16_8_8_4_0_l/debug/weights/best.pth"
 
 def main():
@@ -58,7 +58,7 @@ def save_weight_txt(model, folder):
     name_list = list()
     para_list = list()
 
-    for name, para in model.named_parameters():
+    for name, para in model.state_dict().items():#named_parameters():
         name_list.append(name)
         para_list.append(para)
 
@@ -68,11 +68,24 @@ def save_weight_txt(model, folder):
 
         raw_w = para_list[i]
         raw_w_save = np.array(raw_w.cpu().detach())
+        # print(name, raw_w_save)
+        
+        print(name)
+        print(raw_w_save.shape)
         if name.split(".")[-2] != "bn" \
             and name.split(".")[-2] != "bn2" \
             and name.split(".")[-2] != "bn3" \
             and name.split(".")[-1] != "bias":
+            # print(name)
+            # print(raw_w_save.shape)
             raw_w_save = raw_w_save.transpose((2, 1, 0))
+            # if name == "module.resnet_block_0.0.conv_filter.dilation_conv1d.weight":
+                
+            #     print(raw_w_save.shape)
+            #     print(raw_w_save[0][0])
+            #     exit()
+        name = name.replace("running_mean", "mean")
+        name = name.replace("running_var", "variance")
         np.savetxt(os.path.join(folder, name + '.txt'), raw_w_save.flatten())
         
 def read_txt():
@@ -97,4 +110,4 @@ def read_txt():
 
 if __name__ == "__main__":
     main()
-    read_txt()
+    # read_txt()
