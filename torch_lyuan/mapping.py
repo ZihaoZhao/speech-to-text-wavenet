@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-12-20 11:52:22
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-12-21 22:24:31
+# LastEditTime : 2021-03-22 20:06:09
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/mapping.py
 # Description  : 
 #-------------------------------------------# 
@@ -15,29 +15,29 @@ from torch.utils.data import DataLoader
 import torch.optim as optim
 import torch.nn.functional as F
 import torch.nn.utils.rnn as  rnn_utils
-import deepdish as dd
+# import deepdish as dd
 
-import config_train as cfg
-from dataset import VCTK
-import dataset
+# import config_train as cfg
+# from dataset import VCTK
+# import dataset
 from wavenet import WaveNet
-from sparsity import *
-import utils
-import visualize as vis
+# from sparsity import *
+# import utils
+# import visualize as vis
 
-from ctcdecode import CTCBeamDecoder
+# from ctcdecode import CTCBeamDecoder
 
-from tensorboardX import SummaryWriter
+# from tensorboardX import SummaryWriter
 import os
 import numpy as np
 
-import time
-import argparse
-from write_excel import *
+# import time
+# import argparse
+# from write_excel import *
 
-model_pth = "/zhzhao/code/wavenet_torch/torch_lyuan/exp_result/fd_rtnl_16_8_8_4_0_l_bn_ok/debug/weights/best.pth"
-pattern_dir = "/zhzhao/code/wavenet_torch/torch_lyuan/exp_result/fd_rtnl_16_8_8_4_0_l_bn_ok/debug/patterns"
-save_dir = "/zhzhao/code/wavenet_torch/torch_lyuan/exp_result/fd_rtnl_16_8_8_4_0_l_bn_ok/debug/weights/weight_txt"
+model_pth = "/Users/zzh/Nutstore Files/Server-Code/DLA-explorers/DLA-mapper/data/model/wavenet_dense.pth"
+pattern_dir = "/Users/zzh/Nutstore Files/Server-Code/DLA-explorers/DLA-c-model/tests/data/wavenet/pattern"
+save_dir = "/Users/zzh/Nutstore Files/Server-Code/DLA-explorers/DLA-c-model/tests/data/wavenet"
 # model_pth = "/zhzhao/code/wavenet_torch/torch_lyuan/exp_result/fd_rtnl_16_8_8_4_0_l/debug/weights/best.pth"
 
 def main():
@@ -45,34 +45,31 @@ def main():
     # build model
     model = WaveNet(num_classes=28, channels_in=40, dilations=[1,2,4,8,16])
     model = nn.DataParallel(model)
-    model.cuda()
+    # model.cuda()
 
-    model.load_state_dict(torch.load(model_pth), strict=True)
+    model.load_state_dict(torch.load(model_pth, map_location=torch.device('cpu')), strict=False)
 
     if not os.path.exists(save_dir):
         os.mkdir(save_dir)
-    save_weight_txt(model, save_dir)
+    save_weight_txt(model_pth, save_dir)
 
-def save_weight_txt(model, folder):
+def save_weight_txt(model_pth, folder):
 
     name_list = list()
     para_list = list()
 
-    for name, para in model.named_parameters():
-        name_list.append(name)
-        para_list.append(para)
+    model_weights = torch.load(model_pth, map_location=torch.device('cpu'))
 
-    for i, name in enumerate(name_list):
+    for name, raw_w in model_weights.items():
         # pytorch OC, IC, K
         # C model K, IC, OC        
-
-        raw_w = para_list[i]
-        raw_w_save = np.array(raw_w.cpu().detach())
+        raw_w_save = np.array(raw_w)
         if name.split(".")[-2] != "bn" \
             and name.split(".")[-2] != "bn2" \
             and name.split(".")[-2] != "bn3" \
             and name.split(".")[-1] != "bias":
             raw_w_save = raw_w_save.transpose((2, 1, 0))
+        print(os.path.join(folder, name + '.txt'))
         np.savetxt(os.path.join(folder, name + '.txt'), raw_w_save.flatten())
         
 def read_txt():
@@ -97,4 +94,4 @@ def read_txt():
 
 if __name__ == "__main__":
     main()
-    read_txt()
+    # read_txt()

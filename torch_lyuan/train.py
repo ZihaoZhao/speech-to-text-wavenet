@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2020-12-21 22:14:29
+# LastEditTime : 2021-03-26 09:44:53
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/train.py
 # Description  : 0.001 0-5, 0.0001
 #-------------------------------------------# 
@@ -34,6 +34,7 @@ import numpy as np
 import time
 import argparse
 from write_excel import *
+import torch.onnx
 
 def parse_args():
     '''
@@ -504,6 +505,21 @@ def main():
         if os.path.exists(cfg.load_from):
             model.load_state_dict(torch.load(cfg.load_from), strict=True)
             print("loading", cfg.load_from)
+            # Export the model
+            print("exporting onnx ...")
+            model.eval()
+            batch_size = 1
+            x = torch.randn(batch_size, 40, 720, requires_grad=True).cuda()
+            torch.onnx.export(model.module,               # model being run
+                            x,                         # model input (or a tuple for multiple inputs)
+                            "wavenet.onnx",   # where to save the model (can be a file or file-like object)
+                            export_params=True,        # store the trained parameter weights inside the model file
+                            opset_version=10,          # the ONNX version to export the model to
+                            do_constant_folding=True,  # whether to execute constant folding for optimization
+                            input_names = ['input'],   # the model's input names
+                            output_names = ['output'], # the model's output names
+                            dynamic_axes={'input' : {0 : 'batch_size'},    # variable lenght axes
+                                            'output' : {0 : 'batch_size'}})
 
     if os.path.exists(args.load_from_h5):
         # model.load_state_dict(torch.load(args.load_from_h5), strict=True)
