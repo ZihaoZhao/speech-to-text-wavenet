@@ -17,12 +17,12 @@ import sys
 import config_train as cfg
 import math
 import time
-from fast_pytorch_kmeans import KMeans
+# from fast_pytorch_kmeans import KMeans
 
 import sklearn.cluster._kmeans
 
-# from sklearn.cluster import k_means
-# from kmeans_pytorch import kmeans
+from sklearn.cluster import k_means
+from kmeans_pytorch import kmeans
 import scipy.sparse
 
 from itertools import combinations, permutations
@@ -1691,6 +1691,17 @@ def cal_overhead(net_arch, compression_rate):
 
 if __name__ == "__main__":
     
+    idx = torch.tensor([[0,1,0], [1,1,1], [0,1,1]]).reshape((1,1,3,3)).float()
+    kernel = torch.tensor([[1,2,3], [4,5,6], [7,8,9]]).reshape((1,1,3,3)).float()
+    print(kernel.shape)
+    mask = torch.nn.functional.conv_transpose2d(idx, kernel, 
+                bias=None, stride=(3,3), padding=0, output_padding=0, groups=1)
+    print(mask.shape)
+    for i in range(mask.size(2)):
+        for j in range(mask.size(3)):
+            print(int(mask[0][0][i][j]), end = ' ')
+        print(" ")
+    exit()
     # print(loss_val)
     # raw_w_shape = (128,128,7)
     # raw_w_shape = (1632,36548,1)

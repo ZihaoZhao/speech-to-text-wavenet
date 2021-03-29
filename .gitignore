@@ -7,6 +7,7 @@
 /pretrained
 /data
 /__pycache__
+/torch_lyuan/__pycache__
 model
 *.json
 release

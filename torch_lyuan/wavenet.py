@@ -4,7 +4,11 @@
 # Company      : Fudan University
 # Date         : 2020-10-10 17:40:40
 # LastEditors  : Zihao Zhao
+<<<<<<< HEAD
 # LastEditTime : 2021-03-26 09:42:51
+=======
+# LastEditTime : 2021-02-25 10:19:38
+>>>>>>> 88985b5155b13dbfec202bd156e5ba83b471798a
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/wavenet.py
 # Description  : 
 #-------------------------------------------# 
@@ -106,7 +110,11 @@ class WaveNet(nn.Module):
     def forward(self, inputs):
         # print("input:", inputs.size())
         # print("input:", inputs)
+<<<<<<< HEAD
         # # print(inputs[0][1])
+=======
+        # print(inputs[0][1])
+>>>>>>> 88985b5155b13dbfec202bd156e5ba83b471798a
         # print("out:", self.conv1d(inputs).size())
         # print("out:", self.conv1d(inputs))
         x = self.bn(self.conv1d(inputs))

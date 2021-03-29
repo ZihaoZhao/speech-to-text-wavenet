@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-12-20 11:52:22
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2021-03-29 14:22:36
+# LastEditTime : 2021-03-29 15:37:38
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/mapping.py
 # Description  : 
 #-------------------------------------------# 
@@ -37,7 +37,7 @@ import numpy as np
 
 model_pth = "/Users/zzh/Nutstore Files/Server-Code/DLA-explorers/DLA-mapper/data/model/wavenet/wavenet_dense.pth"
 pattern_dir = "/Users/zzh/Nutstore Files/Server-Code/DLA-explorers/DLA-c-model/tests/data/wavenet/pattern"
-save_dir = "/Users/zzh/Nutstore Files/Server-Code/DLA-explorers/DLA-c-model/tests/data/wavenet"
+save_dir = "/Users/zzh/Nutstore Files/Server-Code/DLA-explorers/DLA-c-model/tests/data/wavenet/weights"
 # model_pth = "/zhzhao/code/wavenet_torch/torch_lyuan/exp_result/fd_rtnl_16_8_8_4_0_l/debug/weights/best.pth"
 
 def main():
@@ -68,6 +68,8 @@ def save_weight_txt(model_pth, folder):
             and name.split(".")[-2] != "bn2" \
             and name.split(".")[-2] != "bn3" \
             and name.split(".")[-1] != "bias":
+            # print(name)
+            # print(raw_w_save.shape)
             raw_w_save = raw_w_save.transpose((2, 1, 0))
         print(os.path.join(folder, name + '.txt'))
         np.savetxt(os.path.join(folder, name + '.txt'), raw_w_save.flatten())
