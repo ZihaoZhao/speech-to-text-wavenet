@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-12-20 11:52:22
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2021-03-22 20:06:09
+# LastEditTime : 2021-03-29 14:22:36
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/mapping.py
 # Description  : 
 #-------------------------------------------# 
@@ -35,7 +35,7 @@ import numpy as np
 # import argparse
 # from write_excel import *
 
-model_pth = "/Users/zzh/Nutstore Files/Server-Code/DLA-explorers/DLA-mapper/data/model/wavenet_dense.pth"
+model_pth = "/Users/zzh/Nutstore Files/Server-Code/DLA-explorers/DLA-mapper/data/model/wavenet/wavenet_dense.pth"
 pattern_dir = "/Users/zzh/Nutstore Files/Server-Code/DLA-explorers/DLA-c-model/tests/data/wavenet/pattern"
 save_dir = "/Users/zzh/Nutstore Files/Server-Code/DLA-explorers/DLA-c-model/tests/data/wavenet"
 # model_pth = "/zhzhao/code/wavenet_torch/torch_lyuan/exp_result/fd_rtnl_16_8_8_4_0_l/debug/weights/best.pth"
