@@ -4,7 +4,7 @@
 # Company      : Fudan University
 # Date         : 2020-12-20 11:52:22
 # LastEditors  : Zihao Zhao
-# LastEditTime : 2021-03-29 15:37:38
+# LastEditTime : 2021-03-29 15:39:43
 # FilePath     : /speech-to-text-wavenet/torch_lyuan/mapping.py
 # Description  : 
 #-------------------------------------------# 
@@ -20,7 +20,7 @@ import torch.nn.utils.rnn as  rnn_utils
 # import config_train as cfg
 # from dataset import VCTK
 # import dataset
-from wavenet import WaveNet
+# from wavenet import WaveNet
 # from sparsity import *
 # import utils
 # import visualize as vis
@@ -43,11 +43,11 @@ save_dir = "/Users/zzh/Nutstore Files/Server-Code/DLA-explorers/DLA-c-model/test
 def main():
     print("Mapping...")
     # build model
-    model = WaveNet(num_classes=28, channels_in=40, dilations=[1,2,4,8,16])
-    model = nn.DataParallel(model)
+    # model = WaveNet(num_classes=28, channels_in=40, dilations=[1,2,4,8,16])
+    # model = nn.DataParallel(model)
     # model.cuda()
 
-    model.load_state_dict(torch.load(model_pth, map_location=torch.device('cpu')), strict=False)
+    # model.load_state_dict(torch.load(model_pth, map_location=torch.device('cpu')), strict=False)
 
     if not os.path.exists(save_dir):
         os.mkdir(save_dir)
